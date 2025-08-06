@@ -1,0 +1,81 @@
+#root {
+  width: 100%;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
+/* Custom Cavs Colors */
+.bg-cavs-wine {
+  background-color: #6F263D;
+}
+
+/* Mode Toggle Styles */
+.mode-toggle {
+  display: flex;
+  background-color: #6F263D !important;
+  border-radius: 8px;
+  padding: 4px;
+  gap: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  border: 2px solid #FFB81C;
+}
+
+.toggle-button {
+  padding: 0.5rem 1.5rem !important;
+  font-size: 0.9rem !important;
+  font-weight: bold !important;
+  border: none !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  transition: all 0.3s ease !important;
+  background-color: transparent !important;
+  color: #FFB81C !important;
+}
+
+.toggle-button:hover {
+  background-color: rgba(255, 184, 28, 0.2) !important;
+  color: #FFB81C !important;
+}
+
+.toggle-button.active {
+  background-color: #FFB81C !important;
+  color: #6F263D !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
