@@ -9,6 +9,11 @@ const COURT_ZONES = [
   { id: 'right_corner', label: 'Right Corner' },
 ];
 
+// Helper function to format numbers with leading zeros (always 2 digits)
+const formatStatNumber = (num) => {
+  return num.toString().padStart(2, '0');
+};
+
 const ZoneButtons = ({ shots, setShots, currentPlayer, onShot, onUndoZoneShot, sessionStarted, sessionPaused, currentElapsedTime }) => {
   const handleZoneClick = (zoneId, made) => {
     if (!sessionStarted) {
@@ -76,7 +81,7 @@ const ZoneButtons = ({ shots, setShots, currentPlayer, onShot, onUndoZoneShot, s
                   alignItems: 'center',
                   height: 'fit-content'
                 }}>
-                  {zoneStats.made}/{zoneStats.attempts}
+                  {formatStatNumber(zoneStats.made)}/{formatStatNumber(zoneStats.attempts)}
                 </span>
               </div>
               <div className="button-group" style={{
@@ -99,7 +104,7 @@ const ZoneButtons = ({ shots, setShots, currentPlayer, onShot, onUndoZoneShot, s
                   className="zone-action-button make-button"
                   onClick={() => handleZoneClick(zone.id, true)}
                   disabled={!sessionStarted || sessionPaused}
-                  title={sessionStarted ? (sessionPaused ? 'Resume session to shoot' : `Make shot from ${zone.label} (${zoneStats.made}/${zoneStats.attempts})`) : 'Start session to shoot'}
+                  title={sessionStarted ? (sessionPaused ? 'Resume session to shoot' : `Make shot from ${zone.label} (${formatStatNumber(zoneStats.made)}/${formatStatNumber(zoneStats.attempts)})`) : 'Start session to shoot'}
                   style={{
                     opacity: (sessionStarted && !sessionPaused) ? 1 : 0.5,
                     cursor: (sessionStarted && !sessionPaused) ? 'pointer' : 'not-allowed'
@@ -111,7 +116,7 @@ const ZoneButtons = ({ shots, setShots, currentPlayer, onShot, onUndoZoneShot, s
                   className="zone-action-button miss-button"
                   onClick={() => handleZoneClick(zone.id, false)}
                   disabled={!sessionStarted || sessionPaused}
-                  title={sessionStarted ? (sessionPaused ? 'Resume session to shoot' : `Miss shot from ${zone.label} (${zoneStats.made}/${zoneStats.attempts})`) : 'Start session to shoot'}
+                  title={sessionStarted ? (sessionPaused ? 'Resume session to shoot' : `Miss shot from ${zone.label} (${formatStatNumber(zoneStats.made)}/${formatStatNumber(zoneStats.attempts)})`) : 'Start session to shoot'}
                   style={{
                     opacity: (sessionStarted && !sessionPaused) ? 1 : 0.5,
                     cursor: (sessionStarted && !sessionPaused) ? 'pointer' : 'not-allowed'

@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import './CourtTracker.css';
 
+// Helper function to format numbers with leading zeros (always 2 digits)
+const formatStatNumber = (num) => {
+  return num.toString().padStart(2, '0');
+};
 
 const COURT_ZONES = [
   { 
     id: 'left_corner', 
     label: 'Left Corner',
     // Left corner: actual corner area following three-point line
-    polygon: "8.4,-2.1 13.2,-2.1 13.4,21.9 8.3,21.9",
+    polygon: "14.7,0.1 18.5,0.1 18.6,21.7 14.6,21.7",
     buttonPosition: { top: '15%', left: '11%' },
     bounds: { top: -2.5, left: 8.3, bottom: 21.9, right: 13.4 }
   },
@@ -15,7 +19,7 @@ const COURT_ZONES = [
     id: 'left_wing', 
     label: 'Left Wing',
     // Left wing: between corner and paint
-    polygon: "8.3,21.9 13.4,21.9 15,25.7 17.9,29.9 20.5,32.9 23.1,35.6 26,38.1 29,40.1 31.9,41.4 32.3,41.7 32.3,58 8.3,58",
+    polygon: "19,21.9 20.3,25 21.9,28.7 24.7,32.2 27.2,35.1 29.5,37.3 32.3,39.4 35.2,41 37.7,42.2 39,42.9 39,59.8 14.8,59.8 14.7,21.9",
     buttonPosition: { top: '40%', left: '20%' },
     bounds: { top: 21.9, left: 8.3, bottom: 58, right: 32.3 }
   },
@@ -23,7 +27,7 @@ const COURT_ZONES = [
     id: 'top_key', 
     label: 'Top of Key',
     // Top of key: paint area and free throw extended
-    polygon: "32.3,41.7 36.3,43.5 40.2,44.7 44.4,45.8 47.5,45.9 52.1,45.8 56.7,45.4 62.7,44.2 66.1,42.4 68.4,41.7 68.4,58 32.3,58",
+    polygon: "62,42.5 62,59.9 38.3,59.9 38.2,42.8 40.9,43.8 43.9,44.6 47.2,45 51.5,45.2 55.6,44.7 59,43.8",
     buttonPosition: { top: '75%', left: '50%' },
     bounds: { top: 41.7, left: 32.3, bottom: 58, right: 68.4 }
   },
@@ -31,7 +35,7 @@ const COURT_ZONES = [
     id: 'right_wing', 
     label: 'Right Wing',
     // Right wing: mirror of left wing - aligned boundary with top_key
-    polygon: "68.4,41.7 69.7,41.4 70.1,40.1 74,38.1 76.9,35.6 79.5,32.9 82.1,29.9 85,25.7 86.6,21.9 91.7,21.9 91.7,58 68.4,58",
+    polygon: "81.2,22.1 79.5,25.6 78.3,28.8 76,31.7 73.2,34.6 70.6,37.7 67.3,39.7 64.7,41.1 62.3,42.3 61.2,42.8 61.5,59.7 85.2,59.7 85.6,22",
     buttonPosition: { top: '40%', left: '80%' },
     bounds: { top: 21.9, left: 68.4, bottom: 58, right: 91.7 }
   },
@@ -39,7 +43,7 @@ const COURT_ZONES = [
     id: 'right_corner', 
     label: 'Right Corner',
     // Right corner: mirror of left corner
-    polygon: "86.6,-2.1 91.7,-2.1 91.7,21.9 86.6,21.9",
+    polygon: "81.2,0.2 81.2,21.6 85.3,21.9 85.1,0.2",
     buttonPosition: { top: '15%', left: '89%' },
     bounds: { top: -2.5, left: 86.6, bottom: 21.9, right: 91.9 }
   }
@@ -444,7 +448,7 @@ const CourtTracker = ({ shots, setShots, currentPlayer, onShot, onUndoZoneShot, 
                         onClick={(e) => !isMobilePhone && handlePolygonClick(zone.id, true, e)}
                         title={sessionStarted ? 
                           (sessionPaused ? 'Resume session to shoot' : 
-                          `${zone.label} - MAKE (${zoneStats.made}/${zoneStats.attempts})`) : 
+                          `${zone.label} - MAKE (${formatStatNumber(zoneStats.made)}/${formatStatNumber(zoneStats.attempts)})`) : 
                           'Start session to shoot'}
                       />
                       
@@ -471,7 +475,7 @@ const CourtTracker = ({ shots, setShots, currentPlayer, onShot, onUndoZoneShot, 
                         onClick={(e) => !isMobilePhone && handlePolygonClick(zone.id, false, e)}
                         title={sessionStarted ? 
                           (sessionPaused ? 'Resume session to shoot' : 
-                          `${zone.label} - MISS (${zoneStats.made}/${zoneStats.attempts})`) : 
+                          `${zone.label} - MISS (${formatStatNumber(zoneStats.made)}/${formatStatNumber(zoneStats.attempts)})`) : 
                           'Start session to shoot'}
                       />
                       
@@ -510,7 +514,7 @@ const CourtTracker = ({ shots, setShots, currentPlayer, onShot, onUndoZoneShot, 
                         fill="white"
                         style={{ pointerEvents: 'none' }}
                       >
-                        {zoneStats.made}
+                        {formatStatNumber(zoneStats.made)}
                       </text>
                       
                       {/* Miss section text - White zone abbreviation and miss count */}
@@ -548,7 +552,7 @@ const CourtTracker = ({ shots, setShots, currentPlayer, onShot, onUndoZoneShot, 
                         fill="white"
                         style={{ pointerEvents: 'none' }}
                       >
-                        {zoneStats.attempts - zoneStats.made}
+                        {formatStatNumber(zoneStats.attempts - zoneStats.made)}
                       </text>
                       
                       {/* Total shot counter on boundary line - Cavs yellow */}
@@ -566,7 +570,7 @@ const CourtTracker = ({ shots, setShots, currentPlayer, onShot, onUndoZoneShot, 
                         strokeWidth="0.1"
                         style={{ pointerEvents: 'none' }}
                       >
-                        {zoneStats.attempts}
+                        {formatStatNumber(zoneStats.attempts)}
                       </text>
                     </>
                   );
