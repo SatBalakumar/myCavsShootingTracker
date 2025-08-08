@@ -1,3 +1,26 @@
+/**
+ * BASKETBALL SHOOTING TRACKER - MAIN APPLICATION COMPONENT
+ * 
+ * Primary Purpose: Cleveland Cavaliers shooting performance tracking system
+ * Target Users: Basketball coaches, players, and performance analysts
+ * Device Support: Desktop (interactive court) and mobile/tablet (zone buttons)
+ * 
+ * Core Architecture:
+ * - React state management for real-time session tracking
+ * - Firebase integration for data persistence and analytics
+ * - Responsive design with device-specific UI optimizations
+ * - Eastern Time timezone handling for Cleveland-based operations
+ * 
+ * Key Features:
+ * 1. Multi-modal shooting tracking (court clicks vs zone buttons)
+ * 2. Real-time session management with pause/resume capability
+ * 3. Player selection and jersey number-based organization
+ * 4. Comprehensive shot analytics with zone-based statistics
+ * 5. CSV data export for external analysis
+ * 6. Undo functionality for error correction
+ * 7. Session persistence and historical tracking
+ */
+
 import React, { useState, useLayoutEffect, useCallback } from 'react';
 import HomePage from './components/HomePage';
 import PlayerSelection from './components/PlayerSelection';
@@ -11,43 +34,112 @@ import { shootingSessionManager } from './firebase/sessionManager';
 import { getEasternTimeISO } from './utils/timezone';
 import { addCavsRoster } from './utils/addRoster';
 
-// Make addCavsRoster available globally for console use
+/**
+ * DEVELOPER UTILITY: Global roster management function
+ * Makes addCavsRoster available in browser console for easy player data management
+ * Usage: window.addCavsRoster() in browser console to populate initial roster
+ */
 window.addCavsRoster = addCavsRoster;
 
+/**
+ * APP COMPONENT: Central application controller and state manager
+ * 
+ * State Management Architecture:
+ * - Local state for session management and UI control
+ * - Firebase state for data persistence and cross-session tracking
+ * - Device state for responsive behavior and orientation handling
+ * 
+ * Design Philosophy:
+ * - Declarative state updates with clear separation of concerns
+ * - Defensive programming with comprehensive error handling
+ * - User-centric design with confirmation dialogs for destructive actions
+ * - Performance optimization through strategic re-rendering control
+ */
 function App() {
-  const [shots, setShots] = useState([]);
-  const [lastUndoShotTime, setLastUndoShotTime] = useState(null); // Store time for undone shot
-  const [isMapMode, setIsMapMode] = useState(true);
-  const [currentPage, setCurrentPage] = useState('home'); // 'home', 'playerSelection', 'shootingTest'
-  const [selectedPlayer, setSelectedPlayer] = useState(null); // Changed to object
-  const [showEndSessionDialog, setShowEndSessionDialog] = useState(false);
-  const [showDiscardConfirmDialog, setShowDiscardConfirmDialog] = useState(false);
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const [showResultsDialog, setShowResultsDialog] = useState(false);
-  const [showReviewDialog, setShowReviewDialog] = useState(false);
-  const [showResetDialog, setShowResetDialog] = useState(false);
-  const [showExitDialog, setShowExitDialog] = useState(false);
-  const [sessionStarted, setSessionStarted] = useState(false);
-  const [sessionPaused, setSessionPaused] = useState(false);
-  const [startTime, setStartTime] = useState(null);
-  const [totalPausedTime, setTotalPausedTime] = useState(0);
-  const [lastPauseTime, setLastPauseTime] = useState(null);
-  const [elapsedTime, setElapsedTime] = useState(0);
+  /**
+   * CORE SHOOTING SESSION STATE
+   * Primary data structures for tracking basketball shooting performance
+   */
+  const [shots, setShots] = useState([]);                           // Array of shot objects with timing, location, and outcome data
+  const [lastUndoShotTime, setLastUndoShotTime] = useState(null);   // Timer value from most recently undone shot (for accurate timing restoration)
   
-  // Zone order state (persists through orientation changes)
-  const [isReversed, setIsReversed] = useState(false);
+  /**
+   * USER INTERFACE STATE
+   * Controls visual presentation and interaction modes
+   */
+  const [isMapMode, setIsMapMode] = useState(true);                 // Boolean: true for court view, false for zone buttons (desktop vs mobile)
+  const [currentPage, setCurrentPage] = useState('home');          // String: navigation state ('home', 'playerSelection', 'shootingTest')
+  const [selectedPlayer, setSelectedPlayer] = useState(null);      // Object: currently selected player with jersey number, name, and metadata
   
-  // Global orientation and window dimension state
+  /**
+   * DIALOG STATE MANAGEMENT
+   * Controls modal dialog visibility for user confirmations and data operations
+   * 
+   * Design Decision: Separate state variables for each dialog provide:
+   * - Clear code readability and maintenance
+   * - Independent dialog behavior without state conflicts
+   * - Easier debugging and state tracking
+   * - Better user experience with specific dialog handling
+   */
+  const [showEndSessionDialog, setShowEndSessionDialog] = useState(false);       // End session with save option
+  const [showDiscardConfirmDialog, setShowDiscardConfirmDialog] = useState(false); // First-stage discard confirmation
+  const [showSaveDialog, setShowSaveDialog] = useState(false);                   // Save session data confirmation
+  const [showResultsDialog, setShowResultsDialog] = useState(false);             // Display session results and statistics
+  const [showReviewDialog, setShowReviewDialog] = useState(false);               // Review and edit shot data
+  const [showResetDialog, setShowResetDialog] = useState(false);                 // Reset/clear session confirmation
+  const [showExitDialog, setShowExitDialog] = useState(false);                   // Exit application confirmation
+  
+  /**
+   * SESSION TIMING STATE
+   * Manages real-time session duration tracking with pause/resume capability
+   * 
+   * Timing Architecture:
+   * - startTime: Absolute timestamp when session began
+   * - totalPausedTime: Cumulative milliseconds spent in paused state
+   * - lastPauseTime: Timestamp when most recent pause began
+   * - elapsedTime: Calculated active session duration (excludes paused time)
+   */
+  const [sessionStarted, setSessionStarted] = useState(false);      // Boolean: whether shooting session is active
+  const [sessionPaused, setSessionPaused] = useState(false);       // Boolean: whether session is temporarily paused
+  const [startTime, setStartTime] = useState(null);                // Date: timestamp when session began
+  const [totalPausedTime, setTotalPausedTime] = useState(0);       // Number: cumulative milliseconds spent paused
+  const [lastPauseTime, setLastPauseTime] = useState(null);        // Date: timestamp when current pause began
+  const [elapsedTime, setElapsedTime] = useState(0);               // Number: active session duration in milliseconds
+  
+  /**
+   * USER INTERFACE PREFERENCES
+   * Persistent UI state that survives orientation changes and app interactions
+   */
+  const [isReversed, setIsReversed] = useState(false);             // Boolean: whether zone button order is reversed (user preference)
+  
+  /**
+   * RESPONSIVE DESIGN STATE
+   * Real-time device and orientation tracking for adaptive UI behavior
+   * 
+   * Why separate state for dimensions and orientation:
+   * - Device rotation can change dimensions without changing orientation value
+   * - Window resizing (desktop) affects dimensions but not orientation
+   * - Separate tracking enables more precise responsive behavior
+   * - AppRenderKey forces full re-renders when device characteristics change significantly
+   */
   const [windowDimensions, setWindowDimensions] = useState({
     width: window.innerWidth,
     height: window.innerHeight
   });
-  const [orientation, setOrientation] = useState(window.orientation || 0);
-  const [appRenderKey, setAppRenderKey] = useState(0); // Force app-wide re-renders
+  const [orientation, setOrientation] = useState(window.orientation || 0);  // Device orientation in degrees (0, 90, -90, 180)
+  const [appRenderKey, setAppRenderKey] = useState(0);                      // Render key: incrementing forces React to completely re-render components
   
-  // Firebase session management
-  const [currentFirebaseSession, setCurrentFirebaseSession] = useState(null);
-  const [firebaseSessionError, setFirebaseSessionError] = useState(null);
+  /**
+   * FIREBASE INTEGRATION STATE
+   * Manages cloud data persistence and cross-session continuity
+   * 
+   * Firebase Design Pattern:
+   * - currentFirebaseSession: Active session reference for real-time updates
+   * - firebaseSessionError: Error state for graceful failure handling
+   * - Separation allows for offline functionality with later sync capability
+   */
+  const [currentFirebaseSession, setCurrentFirebaseSession] = useState(null);  // Firebase session document reference
+  const [firebaseSessionError, setFirebaseSessionError] = useState(null);     // Error object for Firebase operation failures
 
   // State to track coach actions locally for CSV export
   const [coachActions, setCoachActions] = useState([]);

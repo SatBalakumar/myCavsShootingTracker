@@ -1,52 +1,139 @@
+/**
+ * ZONE BUTTONS COMPONENT STYLES
+ * 
+ * Purpose: Touch-optimized interface styling for mobile basketball shooting tracking
+ * Design Focus: Large, accessible buttons with clear visual feedback
+ * 
+ * Key Design Principles:
+ * 1. Touch-first design with generous button sizes and spacing
+ * 2. Clear make/miss visual distinction using color coding
+ * 3. Real-time statistics display with professional sports styling
+ * 4. Responsive layout adapting to various mobile orientations
+ * 5. Cavaliers branding with wine and gold color scheme
+ * 6. Accessibility compliance with high contrast and clear labeling
+ * 
+ * Component Structure:
+ * - Container: Overall layout and spacing management
+ * - Zone rows: Individual shooting zone interfaces
+ * - Action buttons: Make/Miss recording with visual feedback
+ * - Statistics: Real-time performance tracking display
+ * - Control elements: Zone ordering and global actions
+ * 
+ * Visual Hierarchy:
+ * - Zone names with clear typography and consistent sizing
+ * - Statistics badges with professional sports styling
+ * - Color-coded buttons for immediate action identification
+ * - Balanced spacing for comfortable mobile interaction
+ */
+
+/**
+ * MAIN CONTAINER: Overall layout structure for zone button interface
+ * 
+ * Design Strategy:
+ * - Centered layout with maximum width constraint for optimal button proportions
+ * - Vertical stacking for logical reading order and mobile optimization
+ * - Generous gap spacing for clear visual separation
+ * - Full width utilization within responsive constraints
+ */
 .zone-buttons-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  width: 100%;
-  max-width: 450px;
+  display: flex;                    /* Flexbox for organized layout */
+  flex-direction: column;           /* Vertical stacking of zone elements */
+  align-items: center;              /* Center alignment for professional appearance */
+  gap: 1rem;                       /* Clear spacing between zone rows */
+  width: 100%;                     /* Full available width utilization */
+  max-width: 450px;                /* Optimal width for mobile touch interaction */
 }
 
+/**
+ * TITLE STYLING: Section header for zone button interface
+ * 
+ * Typography Strategy:
+ * - Clear, readable font size appropriate for mobile viewing
+ * - Cavaliers wine color for brand consistency
+ * - Bold weight for hierarchy and emphasis
+ * - Center alignment for balanced presentation
+ */
 .zone-buttons-title {
-  font-size: 1.2rem;
-  color: #6F263D;
-  font-weight: bold;
-  margin: 0;
-  text-align: center;
+  font-size: 1.2rem;               /* Clear, readable sizing */
+  color: #6F263D;                  /* Cavaliers wine for brand identity */
+  font-weight: bold;               /* Strong hierarchy emphasis */
+  margin: 0;                       /* Precise spacing control */
+  text-align: center;              /* Centered professional presentation */
 }
 
+/**
+ * ZONE LIST CONTAINER: Layout for individual zone button rows
+ * 
+ * Organization Strategy:
+ * - Vertical stacking for clear zone separation
+ * - Consistent spacing between zone interfaces
+ * - Full width for maximum button accessibility
+ */
 .zone-buttons-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  width: 100%;
+  display: flex;                   /* Flexbox for zone row organization */
+  flex-direction: column;          /* Vertical stacking of zones */
+  gap: 1rem;                      /* Consistent inter-zone spacing */
+  width: 100%;                    /* Full container width utilization */
 }
 
+/**
+ * ZONE BUTTON ROW: Individual zone interface container
+ * 
+ * Visual Design:
+ * - Horizontal layout with space distribution for name, stats, and actions
+ * - Cavaliers gold background for brand consistency and visibility
+ * - Subtle border and shadow for professional depth
+ * - Rounded corners for modern, approachable appearance
+ */
 .zone-button-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.5rem;
-  background-color: #FFB81C;
-  border: 1px solid #E6A519;
-  border-radius: 6px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  display: flex;                   /* Horizontal layout for zone elements */
+  justify-content: space-between;  /* Distribute space between name, stats, and buttons */
+  align-items: center;             /* Vertical alignment of all elements */
+  padding: 0.5rem;                /* Comfortable internal spacing */
+  background-color: #FFB81C;       /* Cavaliers gold background */
+  border: 1px solid #E6A519;      /* Slightly darker gold border for definition */
+  border-radius: 6px;             /* Modern rounded corners */
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);  /* Subtle depth shadow */
 }
 
+/**
+ * ZONE INFORMATION: Container for zone name and statistics
+ * 
+ * Layout Strategy:
+ * - Flexible width allocation for dynamic content
+ * - Aligned elements for consistent visual presentation
+ * - Space for zone identification and performance metrics
+ */
 .zone-info {
-  display: flex;
-  align-items: center;
-  flex: 1;
+  display: flex;                   /* Flexbox for info element alignment */
+  align-items: center;             /* Vertical alignment of name and stats */
+  flex: 1;                        /* Flexible width allocation */
 }
 
+/**
+ * ZONE NAME: Basketball court area identification
+ * 
+ * Typography Design:
+ * - Clear, readable font size for quick identification
+ * - Bold weight for prominence and hierarchy
+ * - Cavaliers wine color for brand consistency and contrast
+ * - Minimum width ensures consistent layout across all zones
+ * - Left alignment for natural reading flow
+ */
 .zone-name {
-  font-size: 0.9rem;
-  font-weight: bold;
-  color: #6F263D;
-  min-width: 120px;
-  text-align: left;
+  font-size: 0.9rem;              /* Clear, readable mobile font size */
+  font-weight: bold;              /* Prominence and visual hierarchy */
+  color: #6F263D;                 /* Cavaliers wine for brand and contrast */
+  min-width: 120px;               /* Consistent layout width */
+  text-align: left;               /* Natural reading alignment */
 }
 
+/**
+ * ZONE STATISTICS BADGE: Real-time performance display
+ * 
+ * Professional sports styling with clear performance metrics
+ * positioned for easy viewing alongside zone identification
+ */
 .zone-counter-badge {
   white-space: nowrap;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);

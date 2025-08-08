@@ -1,53 +1,134 @@
+/**
+ * FIREBASE SHOOTING SESSION MANAGER
+ * 
+ * Purpose: High-level orchestration service for basketball shooting session management
+ * Responsibilities:
+ * 1. Session lifecycle management (start, pause, resume, end)
+ * 2. Data persistence coordination across multiple Firebase collections
+ * 3. Real-time event tracking and sequencing
+ * 4. Session state validation and error recovery
+ * 5. Cross-service data relationship management
+ * 
+ * Architecture Design:
+ * - Manages relationships between players, shooting logs, shots, and session events
+ * - Provides atomic operations for complex multi-step session operations
+ * - Ensures data consistency across distributed Firebase collections
+ * - Handles both online and offline operation scenarios
+ * 
+ * Data Flow:
+ * Player Selection → Session Creation → Shot Recording → Session Completion → Data Export
+ * 
+ * Dependencies:
+ * - Firebase Firestore for data persistence
+ * - Service layer for individual collection operations
+ * - Timezone utilities for Eastern Time consistency (Cleveland Cavaliers timezone)
+ */
+
 import { playersService, shootingLogsService, shotsService, sessionEventsService } from './services';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from './config';
 import { getEasternTimeISO } from '../utils/timezone';
 
-// High-level service to manage shooting sessions with proper relationships and event tracking
+/**
+ * SHOOTING SESSION MANAGER: Centralized session orchestration service
+ * 
+ * Design Pattern: Service Object with method-based API
+ * Provides high-level operations that coordinate multiple lower-level services
+ * Maintains session state consistency and handles complex multi-step operations
+ */
 export const shootingSessionManager = {
   
-  // Internal sequence counter for events and shots
-  _sequenceCounter: 0,
+  /**
+   * SEQUENCE MANAGEMENT: Ensures proper ordering of session events and shots
+   * 
+   * Why sequencing matters:
+   * - Enables reconstruction of exact shot timeline
+   * - Supports undo/redo operations with proper ordering
+   * - Provides data integrity for analytics and performance review
+   * - Allows for real-time collaboration features in future versions
+   */
+  _sequenceCounter: 0,                                    // Internal counter for maintaining event order
   
-  // Helper method to get and increment sequence
+  /**
+   * Get next sequence number and increment counter
+   * Atomic operation ensures unique sequencing across concurrent operations
+   */
   getNextSequence() {
     return ++this._sequenceCounter;
   },
   
-  // Reset sequence counter for new session
+  /**
+   * Reset sequence counter for new session
+   * Called at session start to ensure each session begins with sequence 1
+   */
   resetSequence() {
     this._sequenceCounter = 0;
   },
   
-  // Start a new shooting session
+  /**
+   * START SHOOTING SESSION: Initialize new basketball shooting tracking session
+   * 
+   * Process Flow:
+   * 1. Validate and resolve player identity
+   * 2. Create shooting log record for session tracking
+   * 3. Initialize session state with timing information
+   * 4. Return session object for real-time tracking
+   * 
+   * @param {string} playerID - Player identifier (can be document ID or actual playerID)
+   * @returns {Object} Session object with logID, playerID, and timing information
+   */
   async startShootingSession(playerID) {
     try {
-      // Reset sequence counter for new session
+      // SEQUENCE INITIALIZATION: Reset counter for clean session start
       this.resetSequence();
       
-      // Get the actual playerID from the player document (in case we're passed a document ID)
+      /**
+       * PLAYER ID RESOLUTION: Handle both document IDs and actual player IDs
+       * 
+       * Why this complexity: The UI sometimes passes Firebase document IDs
+       * instead of the actual playerID field. We need to resolve the correct
+       * playerID for consistent data relationships and analytics.
+       * 
+       * Detection Strategy:
+       * - Document IDs are long random alphanumeric strings (20+ chars)
+       * - Player IDs follow structured format (e.g., "player_001", "cavs_23")
+       */
       let actualPlayerID = playerID;
       
-      // Check if this looks like a Firebase document ID (random string format)
-      // Document IDs are typically 20+ characters of random alphanumeric
+      // Heuristic detection: Does this look like a Firebase document ID?
       const isDocumentId = playerID.length > 15 && /^[a-zA-Z0-9]+$/.test(playerID) && !playerID.includes('_');
       
       if (isDocumentId) {
-        // This might be a document ID, so let's get the actual playerID
+        // Resolve document ID to actual playerID for data consistency
         const player = await playersService.getPlayerById(playerID);
         actualPlayerID = player.playerID || playerID;
       }
       
-      // Create a new shooting log with the actual playerID
+      /**
+       * SHOOTING LOG CREATION: Create persistent record for session tracking
+       * 
+       * Shooting logs serve as:
+       * - Session containers for grouping related shots
+       * - Historical records for performance analysis
+       * - Reference points for data export and reporting
+       */
       const shootingLog = await shootingLogsService.createShootingLog({
         playerID: actualPlayerID,
-        sessionDate: getEasternTimeISO()
+        sessionDate: getEasternTimeISO()        // Eastern Time for Cleveland Cavaliers timezone
       });
       
+      /**
+       * SESSION STATE INITIALIZATION: Create session tracking object
+       * 
+       * Session data structure provides:
+       * - Unique identifiers for data relationships
+       * - Timing information for duration calculations
+       * - Player context for analytics and reporting
+       */
       const sessionData = {
-        logID: shootingLog.logID,
-        playerID: actualPlayerID,
-        sessionStartTime: new Date().getTime()
+        logID: shootingLog.logID,               // Reference to shooting log record
+        playerID: actualPlayerID,               // Resolved player identifier
+        sessionStartTime: new Date().getTime() // High-precision timestamp for duration calculations
       };
       
       // Log session start event

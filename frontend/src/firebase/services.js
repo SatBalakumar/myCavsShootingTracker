@@ -1,3 +1,26 @@
+/**
+ * FIREBASE DATA SERVICES
+ * 
+ * Purpose: Low-level data access layer for basketball shooting tracker
+ * Architecture: Service object pattern with collection-specific modules
+ * 
+ * Design Philosophy:
+ * - Single Responsibility: Each service handles one Firebase collection
+ * - Consistent API: Standardized method signatures across all services
+ * - Error Handling: Comprehensive error catching with informative logging
+ * - Data Transformation: Convert Firebase documents to application objects
+ * - Jersey Number Priority: Sort players by jersey numbers for sports context
+ * 
+ * Collections Schema:
+ * - playerInformation: Player roster with jersey numbers and metadata
+ * - shootingLogs: Session containers grouping related shots
+ * - shots: Individual shot records with location, timing, and outcome
+ * - sessionEvents: Event tracking for session lifecycle and analytics
+ * 
+ * Data Relationships:
+ * Player → ShootingLog → Shots → SessionEvents (hierarchical data model)
+ */
+
 import { 
   collection, 
   getDocs, 
@@ -13,37 +36,73 @@ import {
 import { db } from './config';
 import { getEasternTimeISO } from '../utils/timezone';
 
-// Collection references
-const PLAYERS_COLLECTION = 'playerInformation';
-const SHOOTING_LOGS_COLLECTION = 'shootingLogs';
-const SHOTS_COLLECTION = 'shots';
-const SESSION_EVENTS_COLLECTION = 'sessionEvents';
+/**
+ * COLLECTION CONSTANTS: Firebase collection identifiers
+ * Centralized naming prevents typos and enables easy refactoring
+ */
+const PLAYERS_COLLECTION = 'playerInformation';      // Player roster and profile information
+const SHOOTING_LOGS_COLLECTION = 'shootingLogs';    // Session containers for grouping shots
+const SHOTS_COLLECTION = 'shots';                   // Individual shot records with detailed metadata
+const SESSION_EVENTS_COLLECTION = 'sessionEvents';  // Session lifecycle and event tracking
 
-// Player operations
+/**
+ * PLAYERS SERVICE: Manages basketball player roster operations
+ * 
+ * Key Features:
+ * - Jersey number-based sorting for sports-appropriate display
+ * - Comprehensive player profile management
+ * - Active/inactive player status tracking
+ * - Support for both current roster and historical player data
+ */
 export const playersService = {
-  // Get all players
+  
+  /**
+   * GET ALL PLAYERS: Retrieve complete player roster with jersey number sorting
+   * 
+   * Sorting Strategy:
+   * 1. Primary: Jersey number ascending (maintains team roster order)
+   * 2. Secondary: Alphabetical by name (for players without jersey numbers)
+   * 3. Tertiary: Jersey-numbered players appear before non-numbered players
+   * 
+   * Why JavaScript sorting instead of Firestore orderBy:
+   * - Firestore composite indexes required for multi-field ordering
+   * - JavaScript sorting provides more flexible sorting logic
+   * - Avoids index management overhead for this relatively small dataset
+   * - Enables complex conditional sorting based on data availability
+   * 
+   * @returns {Array} Array of player objects sorted by jersey number
+   */
   async getAllPlayers() {
     try {
       const playersRef = collection(db, PLAYERS_COLLECTION);
       
-      // Use simple query to avoid index issues, then sort in JavaScript
+      // Simple query without orderBy to avoid Firestore index requirements
       const querySnapshot = await getDocs(playersRef);
       
+      // Transform Firestore documents to application objects
       const players = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
+        id: doc.id,                    // Firebase document ID for updates/deletes
+        ...doc.data()                  // Player data: name, jerseyNumber, position, etc.
       }));
       
-      // Sort by jersey number, then by name for players without jersey numbers
+      /**
+       * JERSEY NUMBER SORTING: Sports-appropriate player ordering
+       * 
+       * Sorting Logic Hierarchy:
+       * 1. Players with jersey numbers: Sort numerically (1, 2, 3, ..., 99)
+       * 2. Players without jersey numbers: Sort alphabetically by name
+       * 3. Mixed sorting: Jersey-numbered players first, then alphabetical players
+       */
       return players.sort((a, b) => {
-        // If both players have jersey numbers, sort by jersey number
+        // Both players have jersey numbers: numeric sort
         if (a.jerseyNumber && b.jerseyNumber) {
           return a.jerseyNumber - b.jerseyNumber;
         }
-        // If only one has a jersey number, put that one first
+        // Only player A has jersey number: A comes first
         if (a.jerseyNumber && !b.jerseyNumber) return -1;
+        // Only player B has jersey number: B comes first
         if (!a.jerseyNumber && b.jerseyNumber) return 1;
-        // If neither has a jersey number, sort alphabetically by name
+        // Neither has jersey number: alphabetical sort by name
         return a.name.localeCompare(b.name);
       });
     } catch (error) {

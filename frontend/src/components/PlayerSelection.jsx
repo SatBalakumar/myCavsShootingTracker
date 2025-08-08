@@ -1,51 +1,134 @@
+/**
+ * PLAYER SELECTION COMPONENT
+ * 
+ * Purpose: Interactive player roster interface for basketball shooting sessions
+ * Context: Second step in the shooting tracker workflow (Home → Player Selection → Shooting Test)
+ * 
+ * Key Features:
+ * 1. Dynamic player roster loading from Firebase
+ * 2. Jersey number-based player organization and display
+ * 3. Responsive design with landscape orientation optimization
+ * 4. Progressive loading with visual feedback and time estimation
+ * 5. Sample data initialization for first-time setup
+ * 6. Error handling with graceful degradation
+ * 
+ * User Experience Design:
+ * - Clear visual hierarchy with player photos and jersey numbers
+ * - Loading states with progress indication and time estimates
+ * - Responsive layout adapting to device orientation
+ * - Immediate feedback for user selections
+ * - Error recovery options for network failures
+ * 
+ * Data Flow:
+ * Firebase → Player List → User Selection → Parent Callback → Shooting Session
+ */
+
 import React, { useState, useEffect } from 'react';
 import './PlayerSelection.css';
 import { playersService, initializeSampleData } from '../firebase/services';
 
+/**
+ * PLAYER SELECTION COMPONENT: Roster interface for shooting session setup
+ * 
+ * Props:
+ * @param {Function} onPlayerSelected - Callback when player is chosen (receives player object)
+ * @param {Function} onBackToHome - Callback to return to home screen
+ * 
+ * State Management:
+ * - Player data: Roster information with real-time loading
+ * - UI state: Loading indicators, error handling, progress tracking
+ * - Responsive state: Orientation and layout adaptation
+ */
 const PlayerSelection = ({ onPlayerSelected, onBackToHome }) => {
-  const [selectedPlayer, setSelectedPlayer] = useState('');
-  const [players, setPlayers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [isInitializing, setIsInitializing] = useState(false);
-  const [loadingProgress, setLoadingProgress] = useState(0);
-  const [estimatedTime, setEstimatedTime] = useState(0);
-  const [loadingStartTime, setLoadingStartTime] = useState(null);
-  const [isLandscape, setIsLandscape] = useState(false);
-
-  // Check for landscape orientation and screen size
+  /**
+   * PLAYER SELECTION STATE
+   * Manages the currently selected player and available roster
+   */
+  const [selectedPlayer, setSelectedPlayer] = useState('');    // Currently selected player ID
+  const [players, setPlayers] = useState([]);                 // Array of available players from Firebase
+  
+  /**
+   * LOADING AND ERROR STATE
+   * Provides comprehensive feedback during async operations
+   */
+  const [loading, setLoading] = useState(true);               // Boolean: whether initial data load is in progress
+  const [error, setError] = useState(null);                  // Error object: captures and displays data loading failures
+  const [isInitializing, setIsInitializing] = useState(false); // Boolean: whether sample data initialization is running
+  
+  /**
+   * LOADING PROGRESS STATE
+   * Enhances user experience with detailed loading feedback and time estimation
+   * 
+   * Why detailed loading states:
+   * - Firebase operations can be slow on poor connections
+   * - Users need feedback that the app is working, not frozen
+   * - Time estimates help set user expectations appropriately
+   * - Progress bars provide visual indication of completion
+   */
+  const [loadingProgress, setLoadingProgress] = useState(0);   // Number (0-100): visual progress indicator
+  const [estimatedTime, setEstimatedTime] = useState(0);      // Number (seconds): estimated remaining time
+  const [loadingStartTime, setLoadingStartTime] = useState(null); // Timestamp: when loading began (for calculations)
+  
+  /**
+   * RESPONSIVE DESIGN STATE
+   * Tracks device orientation for layout optimization
+   */
+  const [isLandscape, setIsLandscape] = useState(false);      // Boolean: whether device is in landscape orientation
+  
+  /**
+   * ORIENTATION DETECTION: Real-time responsive layout adjustment
+   * 
+   * Why landscape detection matters:
+   * - Mobile devices in landscape have limited vertical space
+   * - Player list layout needs to adapt for optimal usability
+   * - Landscape layouts benefit from horizontal player arrangement
+   * - Touch targets need to remain accessible in both orientations
+   */
   useEffect(() => {
     const checkOrientation = () => {
+      // Landscape detection: width > height AND height is mobile-sized
       const landscape = window.innerHeight < window.innerWidth && window.innerHeight <= 428;
       setIsLandscape(landscape);
     };
 
+    // Initial check and event listeners for dynamic updates
     checkOrientation();
-    window.addEventListener('resize', checkOrientation);
-    window.addEventListener('orientationchange', checkOrientation);
+    window.addEventListener('resize', checkOrientation);          // Handle window resizing
+    window.addEventListener('orientationchange', checkOrientation); // Handle device rotation
 
+    // Cleanup: Remove event listeners to prevent memory leaks
     return () => {
       window.removeEventListener('resize', checkOrientation);
       window.removeEventListener('orientationchange', checkOrientation);
     };
   }, []);
 
-  // Fetch players from Firebase on component mount
+  /**
+   * PLAYER DATA LOADING: Fetch roster from Firebase with comprehensive error handling
+   * 
+   * Loading Process:
+   * 1. Initialize loading state and progress tracking
+   * 2. Start visual progress simulation for user feedback
+   * 3. Attempt to fetch active players from Firebase
+   * 4. Handle success, empty data, and error scenarios
+   * 5. Provide recovery options for initialization failures
+   */
   useEffect(() => {
     const fetchPlayers = async () => {
       try {
+        // LOADING STATE INITIALIZATION
         setLoading(true);
         setError(null);
         setLoadingProgress(0);
         setLoadingStartTime(Date.now());
         
-        // Start progress simulation
+        // PROGRESS SIMULATION: Start visual feedback for user experience
         const progressInterval = simulateLoadingProgress();
         
-        // Try to get players from Firebase
+        // FIREBASE DATA FETCH: Get active players with jersey number sorting
         const fetchedPlayers = await playersService.getActivePlayers();
         
-        // Clear progress interval
+        // PROGRESS COMPLETION: Clear simulation and show completion
         clearInterval(progressInterval);
         setLoadingProgress(100);
         

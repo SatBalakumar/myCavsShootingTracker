@@ -2,24 +2,45 @@ import React, { useState, useEffect, useCallback } from 'react';
 import './CourtTracker.css';
 import { getEasternTimeISO } from '../utils/timezone';
 
-// Helper function to format numbers with leading zeros (always 2 digits)
+/**
+ * Helper function to format numbers with leading zeros for consistent display
+ * Used for statistics display to maintain visual alignment (e.g., "01", "02", etc.)
+ */
 const formatStatNumber = (num) => {
   return num.toString().padStart(2, '0');
 };
 
+/**
+ * COURT_ZONES: Defines the interactive shooting zones on the basketball court
+ * 
+ * Each zone contains:
+ * - id: Unique identifier for database storage and zone tracking
+ * - label: Human-readable name for UI display
+ * - polygon: SVG coordinate string defining the clickable area boundaries
+ * - buttonPosition: CSS positioning for mobile zone buttons (fallback UI)
+ * - bounds: Rectangular boundaries for collision detection and validation
+ * 
+ * Design Decision: We use SVG polygons instead of rectangular divs because:
+ * 1. Basketball court zones are irregular shapes that follow the actual court lines
+ * 2. SVG coordinates scale perfectly with responsive design
+ * 3. Precise zone boundaries improve shot tracking accuracy
+ * 4. Polygons allow for realistic court zone representation
+ */
 const COURT_ZONES = [
   { 
     id: 'left_corner', 
     label: 'Left Corner',
-    // Left corner: actual corner area following three-point line
+    // Left corner: Actual corner area following three-point line geometry
+    // Coordinates carefully mapped to match real court proportions
     polygon: "17.8,0.3 17.9,21.9 21.5,21.8 21.5,0.2",
-    buttonPosition: { top: '15%', left: '11%' },
-    bounds: { top: -2.5, left: 8.3, bottom: 21.9, right: 13.4 }
+    buttonPosition: { top: '15%', left: '11%' }, // Mobile fallback button placement
+    bounds: { top: -2.5, left: 8.3, bottom: 21.9, right: 13.4 } // Collision detection boundaries
   },
   { 
     id: 'left_wing', 
     label: 'Left Wing',
-    // Left wing: between corner and paint
+    // Left wing: Area between corner and paint, follows three-point arc
+    // Complex polygon shape accounts for the curved three-point line
     polygon: "18,22 18.1,59.4 39.7,59.6 39.8,42.9 37.6,42 35.4,41 33.1,39.1 30.7,37.3 28.7,34.6 26.6,32.4 25.1,29.8 23.8,27.3 22.6,24.6 21.6,22.1",
     buttonPosition: { top: '40%', left: '20%' },
     bounds: { top: 21.9, left: 8.3, bottom: 58, right: 32.3 }
@@ -27,15 +48,17 @@ const COURT_ZONES = [
   { 
     id: 'top_key', 
     label: 'Top of Key',
-    // Top of key: paint area and free throw extended
+    // Top of key: Paint area and free throw extended region
+    // Most common shooting area, positioned for optimal user accessibility
     polygon: "40.1,42.9 40.1,59.9 60.6,59.9 60.6,42.7 58.8,43.6 56.3,44.4 53.8,45.1 51.1,45.3 48.3,45.5 45.5,44.9 42.6,44.2",
-    buttonPosition: { top: '75%', left: '50%' },
+    buttonPosition: { top: '75%', left: '50%' }, // Centered for easy thumb access on mobile
     bounds: { top: 41.7, left: 32.3, bottom: 58, right: 68.4 }
   },
   { 
     id: 'right_wing', 
     label: 'Right Wing',
-    // Right wing: mirror of left wing - aligned boundary with top_key
+    // Right wing: Mirror of left wing with precise boundary alignment to top_key
+    // Ensures no gaps or overlaps between adjacent zones for accurate tracking
     polygon: "82.2,21.7 82,59.7 60.8,59.6 60.8,42.8 63.1,41.8 65.7,40.1 68.2,38.6 70,36.5 72.3,33.9 74.2,31.5 75.8,28.8 77.1,26.3 78,23.9 78.8,21.9",
     buttonPosition: { top: '40%', left: '80%' },
     bounds: { top: 21.9, left: 68.4, bottom: 58, right: 91.7 }
@@ -43,179 +66,309 @@ const COURT_ZONES = [
   { 
     id: 'right_corner', 
     label: 'Right Corner',
-    // Right corner: mirror of left corner
+    // Right corner: Perfect mirror of left corner for symmetrical court layout
+    // Maintains consistent zone sizing for fair statistical comparison
     polygon: "78.8,0.2 82.1,0.2 82.1,21.2 78.8,21.3",
     buttonPosition: { top: '15%', left: '89%' },
     bounds: { top: -2.5, left: 86.6, bottom: 21.9, right: 91.9 }
   }
 ];
 
+/**
+ * CourtTracker Component: Interactive basketball court for desktop shot tracking
+ * 
+ * Design Philosophy:
+ * - Desktop-only interactive court for precision clicking
+ * - Mobile devices get zone buttons (better UX for touch interfaces)
+ * - SVG overlay system for scalable, responsive zone detection
+ * - Split-zone design: each zone divided into "make" and "miss" sections
+ * 
+ * Key Features:
+ * 1. Responsive design that scales with screen size
+ * 2. Zone editor mode for developers to create new court zones
+ * 3. Real-time statistics tracking and display
+ * 4. Session state management (start/pause/resume)
+ * 5. Device-aware UI (desktop vs mobile experience)
+ */
 const CourtTracker = (props) => {
-  // Add safety checks for props
+  // SAFETY CHECKS: Defensive programming to prevent runtime errors
+  // Props can be undefined during React component lifecycle transitions
   if (!props) {
     console.error('CourtTracker: No props provided');
     return <div>Loading Court...</div>;
   }
 
+  // PROP EXTRACTION: Destructure props with clear naming for maintainability
+  // Each prop serves a specific purpose in the shooting session workflow
   const { 
-    shots, 
-    setShots, 
-    sessionStarted, 
-    sessionPaused, 
-    currentPlayer, 
-    currentElapsedTime, 
-    onShot,
-    onUndoLastShot,
-    lastUndoShotTime,
-    setLastUndoShotTime,
-    windowDimensions,
-    orientation,
-    isIPhoneLandscape,
-    appRenderKey
+    shots,                    // Array of shot objects for current session
+    setShots,                 // State setter for updating shots array
+    sessionStarted,           // Boolean: whether shooting session is active
+    sessionPaused,            // Boolean: whether session is temporarily paused
+    currentPlayer,            // Object: selected player information
+    currentElapsedTime,       // Number: milliseconds since session start
+    onShot,                   // Callback: fired when shot is recorded
+    onUndoLastShot,          // Callback: fired when last shot is undone
+    lastUndoShotTime,        // Number: timer value from undone shot (for recalculation)
+    setLastUndoShotTime,     // State setter: clears undo timer after use
+    windowDimensions,        // Object: current window size for responsive behavior
+    orientation,             // String: device orientation (portrait/landscape)
+    isIPhoneLandscape,       // Boolean: specific iPhone landscape detection
+    appRenderKey             // Number: forces re-render when needed
   } = props;
 
-  // Additional safety checks
+  // CRITICAL PROPS VALIDATION: Ensure required props exist and are functional
+  // Without shots array and setShots function, the component cannot track data
   if (!shots || !setShots || typeof setShots !== 'function') {
     console.error('CourtTracker: Missing required props (shots, setShots)');
     return <div>Loading Court...</div>;
   }
 
-  // Calculate time taken for current shot
+  /**
+   * SHOT TIMING CALCULATION: Determines time elapsed for each individual shot
+   * 
+   * Two scenarios:
+   * 1. Normal shot: Calculate time since last shot (or session start)
+   * 2. Post-undo shot: Use stored time from the undone shot for accuracy
+   * 
+   * Why this matters: Shot timing data is used for analyzing shooting rhythm
+   * and performance patterns over time. Accurate timing is crucial for
+   * meaningful basketball analytics.
+   */
   const calculateShotTime = (currentElapsedTime) => {
     try {
       if (lastUndoShotTime !== null && lastUndoShotTime !== undefined) {
-        // Use the time from the undone shot
+        // Scenario 1: Use stored time from undone shot to maintain timing accuracy
         const undoTime = lastUndoShotTime;
         if (typeof setLastUndoShotTime === 'function') {
-          setLastUndoShotTime(null); // Clear after using
+          setLastUndoShotTime(null); // Clear after using to prevent reuse
         }
         return undoTime;
       } else {
-        // Calculate time since last shot (or session start)
+        // Scenario 2: Calculate time since last shot (or session start if first shot)
         const previousShotTime = shots && shots.length > 0 ? shots[shots.length - 1].timerValue : 0;
         return (currentElapsedTime || 0) - (previousShotTime || 0);
       }
     } catch (error) {
       console.error('Error calculating shot time:', error);
-      return 0; // Fallback value
+      return 0; // Safe fallback prevents app crashes
     }
   };
-  // Use orientation data from App component if available, fallback to local detection
+  /**
+   * RESPONSIVE DESIGN: Get effective window dimensions for device detection
+   * Prioritizes parent-provided dimensions over local window measurements
+   * for consistent behavior across the application
+   */
   const effectiveWindowDimensions = windowDimensions || {
     width: window.innerWidth,
     height: window.innerHeight
   };
   
-  // Enhanced mobile and tablet detection - disable court mode on all mobile devices and tablets
+  /**
+   * DEVICE DETECTION: Comprehensive mobile and tablet detection strategy
+   * 
+   * Why disable court interactions on mobile/tablet:
+   * 1. Touch interfaces are imprecise for small court zones
+   * 2. Finger size obscures the shooting area being clicked
+   * 3. Zone buttons provide better UX for touch devices
+   * 4. Prevents accidental touches during device handling
+   * 
+   * Multi-layered detection approach:
+   * - User agent strings (most reliable for known devices)
+   * - Screen width thresholds (catches various form factors)
+   * - Touch capability detection (modern device fallback)
+   * - Specific iPad detection (often misidentified as desktop)
+   * - Viewport-based detection (tablet size ranges)
+   */
   const isMobileOrTablet = useCallback(() => {
     return (
-      // User agent detection (catches most devices)
+      // Layer 1: User agent detection (catches most devices reliably)
       /Android|webOS|iPhone|iPod|iPad|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet/i.test(navigator.userAgent) ||
-      // Screen width detection (catches smaller screens and some tablets)
+      // Layer 2: Screen width detection (catches smaller screens and some tablets)
       effectiveWindowDimensions.width <= 768 ||
-      // Touch capability detection (fallback for devices not caught above)
+      // Layer 3: Touch capability detection (fallback for devices not caught above)
       ('ontouchstart' in window) ||
-      // Specific iPad detection (more comprehensive)
+      // Layer 4: Specific iPad detection (comprehensive approach for modern iPads)
       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ||
-      // Additional viewport-based detection for tablets
+      // Layer 5: Viewport-based detection for tablets (additional safety net)
       (effectiveWindowDimensions.width <= 1200 && effectiveWindowDimensions.height <= 900)
     );
   }, [effectiveWindowDimensions]);
   
-  // Determine if court interactions should be disabled (only allow on desktop)
+  // INTERACTION CONTROL: Determine if court should be interactive based on device type
   const shouldDisableCourtInteractions = isMobileOrTablet();
   
-  // Zone Editor State - Only allow on desktop
+  /**
+   * ZONE EDITOR STATE: Developer tool for creating new court zones
+   * Only enabled on desktop to avoid accidental activation on mobile
+   * 
+   * State variables:
+   * - isEditorMode: Boolean toggle for editor interface
+   * - selectedPoints: Array of clicked coordinates for polygon creation
+   * - currentZoneName: String identifier for new zone being created
+   * - editingZoneId: ID of zone being modified (future feature)
+   */
   const [isEditorMode, setIsEditorMode] = useState(false);
   const [selectedPoints, setSelectedPoints] = useState([]);
   const [currentZoneName, setCurrentZoneName] = useState('');
   const [editingZoneId, setEditingZoneId] = useState(null);
 
-  // Handle clicks on court for point selection
+  /**
+   * COURT CLICK HANDLER: Processes clicks for zone editor point selection
+   * 
+   * Coordinate system explanation:
+   * - SVG viewBox is "0 0 100 60" (100 width units, 60 height units)
+   * - Click coordinates are converted to percentage-based positions
+   * - This ensures coordinates scale properly with responsive design
+   * 
+   * Security: Only functions in editor mode on desktop devices
+   */
   const handleCourtClick = (event) => {
-    // Completely disable editor functionality on mobile phones and tablet landscape
+    // Security check: Prevent activation on mobile or when editor is disabled
     if (shouldDisableCourtInteractions || !isEditorMode) return;
     
+    // Convert browser click coordinates to SVG coordinate system
     const rect = event.currentTarget.getBoundingClientRect();
     const x = ((event.clientX - rect.left) / rect.width) * 100;
     const y = ((event.clientY - rect.top) / rect.height) * 60;
     
+    // Round to 1 decimal place for clean coordinate values
     const newPoint = { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
     setSelectedPoints([...selectedPoints, newPoint]);
   };
 
-  // Convert points to polygon string
+  /**
+   * UTILITY FUNCTIONS for Zone Editor
+   * These functions support the developer zone creation workflow
+   */
+  
+  // Convert array of point objects to SVG polygon coordinate string
   const pointsToPolygon = (points) => {
     return points.map(p => `${p.x},${p.y}`).join(' ');
   };
 
-  // Clear current selection
+  // Reset all editor state to start fresh zone creation
   const clearSelection = () => {
     setSelectedPoints([]);
     setCurrentZoneName('');
     setEditingZoneId(null);
   };
 
-  // Generate polygon code
+  // Generate copy-pasteable code for new zone definitions
   const generatePolygonCode = () => {
     if (selectedPoints.length < 3) return '';
     const polygonString = pointsToPolygon(selectedPoints);
     return `polygon: "${polygonString}"`;
   };
 
-  // Remove last point
+  // Remove most recent point (undo last click)
   const removeLastPoint = () => {
     setSelectedPoints(selectedPoints.slice(0, -1));
   };
 
-  // Handle clicks on SVG polygon zones
+  /**
+   * SHOT RECORDING HANDLERS: Process user interactions with court zones
+   * 
+   * Two-layer approach:
+   * 1. handlePolygonClick: Handles SVG element events (prevents event bubbling)
+   * 2. handleZoneClick: Core business logic for shot recording
+   */
+  
+  // SVG event handler - prevents click events from bubbling to parent elements
   const handlePolygonClick = (zoneId, made, event) => {
     event.preventDefault();
     event.stopPropagation();
     handleZoneClick(zoneId, made);
   };
 
+  /**
+   * CORE SHOT RECORDING LOGIC: Validates session state and records shot data
+   * 
+   * Validation hierarchy:
+   * 1. Session must be started (prevents accidental shots)
+   * 2. Session must not be paused (enforces proper workflow)
+   * 3. Shot limit not exceeded (prevents infinite sessions)
+   * 
+   * Shot data structure includes:
+   * - location: Zone identifier for analytics
+   * - made: Boolean for make/miss tracking
+   * - timestamp: Eastern Time for Cleveland Cavaliers timezone
+   * - player: Player object for session attribution
+   * - timerValue: Absolute session time when shot occurred
+   * - timeTakenForShot: Relative time since previous shot
+   */
   const handleZoneClick = (zoneId, made) => {
+    // Validation 1: Ensure session is active
     if (!sessionStarted) {
       alert("Please start a session first!");
       return;
     }
     
+    // Validation 2: Ensure session is not paused
     if (sessionPaused) {
       alert("Session is paused! Resume to continue shooting.");
       return;
     }
     
+    // Validation 3: Enforce shot limit for manageable session lengths
     if (shots.length >= 100) {
       alert("Test complete! 100 shots taken.");
       return;
     }
 
+    // Create comprehensive shot record with timing and context data
     const newShot = {
-      location: zoneId,
-      made,
-      timestamp: getEasternTimeISO(),
-      player: currentPlayer,
-      timerValue: currentElapsedTime, // Store what the timer showed when shot was taken
+      location: zoneId,                               // Zone identifier for analytics
+      made,                                           // Boolean: true for make, false for miss
+      timestamp: getEasternTimeISO(),                 // Eastern Time (Cavaliers timezone)
+      player: currentPlayer,                          // Player object for attribution
+      timerValue: currentElapsedTime,                 // Absolute session timer value
       timeTakenForShot: calculateShotTime(currentElapsedTime) // Time since last shot
     };
+    
+    // Update local state and notify parent component
     setShots([...shots, newShot]);
-    if (onShot) onShot(newShot);
+    if (onShot) onShot(newShot); // Trigger any additional shot processing
   };
 
+  /**
+   * STATISTICS CALCULATION: Real-time shot tracking per zone
+   * 
+   * Creates object with zone-based statistics:
+   * - made: Number of successful shots in each zone
+   * - attempts: Total shots attempted in each zone
+   * 
+   * Used for:
+   * - Real-time feedback during sessions
+   * - Visual indicators on court zones
+   * - Performance analysis and improvement tracking
+   */
   const getStats = () => {
     const stats = {};
     for (let shot of shots) {
+      // Initialize zone stats if first shot in this zone
       if (!stats[shot.location]) stats[shot.location] = { made: 0, attempts: 0 };
+      
+      // Count all attempts
       stats[shot.location].attempts++;
+      
+      // Count successful shots
       if (shot.made) stats[shot.location].made++;
     }
     return stats;
   };
 
-  const stats = getStats();
+  const stats = getStats(); // Calculate current session statistics
 
-  // Don't render court at all on mobile/tablet devices
+  /**
+   * MOBILE DEVICE FALLBACK: Provide alternative UI for touch devices
+   * 
+   * Design Decision: Instead of trying to make court interactive on mobile
+   * (which would be frustrating due to touch precision issues), we provide
+   * a clear message directing users to the zone buttons interface.
+   * 
+   * This maintains a consistent user experience across all device types.
+   */
   if (shouldDisableCourtInteractions) {
     return (
       <div className="court-wrapper-single">
@@ -231,7 +384,7 @@ const CourtTracker = (props) => {
         }}>
           <div style={{
             textAlign: 'center',
-            color: '#6F263D',
+            color: '#6F263D',              // Cavaliers wine color
             fontSize: '18px',
             fontWeight: 'bold'
           }}>

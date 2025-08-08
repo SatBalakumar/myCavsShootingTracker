@@ -1,40 +1,115 @@
+/**
+ * SHOOTING STATISTICS COMPONENT
+ * 
+ * Purpose: Real-time basketball performance analytics and summary display
+ * Context: Live statistics during shooting sessions and post-session analysis
+ * 
+ * Key Features:
+ * 1. Real-time zone-by-zone shooting percentage calculation
+ * 2. Overall session performance metrics
+ * 3. Professional sports statistics presentation
+ * 4. Responsive layout adapting to various screen sizes
+ * 5. Color-coded performance indicators
+ * 6. Comprehensive shooting analysis
+ * 
+ * Analytics Provided:
+ * - Zone-specific make/miss ratios and percentages
+ * - Overall session shooting percentage
+ * - Total attempts and successful shots
+ * - Performance trends and patterns
+ * - Real-time updates as shots are recorded
+ * 
+ * Design Philosophy:
+ * - Clear, readable statistics for quick performance assessment
+ * - Professional sports aesthetic matching basketball analytics
+ * - Color coding for immediate performance recognition
+ * - Responsive design ensuring readability on all devices
+ * - Zero-state handling for sessions without shots
+ */
+
 import React from 'react';
 
+/**
+ * SHOOTING STATISTICS COMPONENT: Real-time performance analytics
+ * 
+ * Props:
+ * @param {Array} shots - Array of shot objects from current session
+ * @param {Object} windowDimensions - Current window size for responsive design
+ * @param {boolean} sessionStarted - Whether shooting session is active
+ * 
+ * State: Stateless component (calculations performed on each render for real-time updates)
+ * 
+ * Performance Considerations:
+ * - Calculations performed on render for immediate updates
+ * - Efficient object iteration for zone statistics
+ * - Minimal DOM manipulation for smooth performance
+ */
 const ShootingStatistics = ({ shots, windowDimensions, sessionStarted }) => {
-  // Zone information
+  /**
+   * ZONE DEFINITIONS: Basketball court shooting areas
+   * 
+   * Mapping from database identifiers to user-friendly zone names
+   * Maintains consistency with other components and provides clear labeling
+   */
   const zoneNames = {
-    left_corner: 'Left Corner',
-    left_wing: 'Left Wing',
-    top_key: 'Top of Key',
-    right_wing: 'Right Wing',
-    right_corner: 'Right Corner'
+    left_corner: 'Left Corner',     // Left corner three-point area
+    left_wing: 'Left Wing',         // Left wing three-point area  
+    top_key: 'Top of Key',          // Paint and free throw extended area
+    right_wing: 'Right Wing',       // Right wing three-point area
+    right_corner: 'Right Corner'    // Right corner three-point area
   };
 
-  // Calculate zone statistics
+  /**
+   * ZONE STATISTICS CALCULATION: Real-time performance analysis
+   * 
+   * Process:
+   * 1. Initialize all zones with zero statistics
+   * 2. Process each shot to increment zone counters
+   * 3. Calculate shooting percentages for each zone
+   * 4. Return comprehensive statistics object
+   * 
+   * @returns {Object} Statistics object with zone-by-zone performance data
+   */
   const getZoneStats = () => {
     const stats = {};
     
-    // Initialize all zones
+    /**
+     * INITIALIZATION: Set up zero-state for all basketball zones
+     * 
+     * Ensures all zones appear in statistics even if no shots taken,
+     * providing complete court coverage for analysis
+     */
     Object.keys(zoneNames).forEach(zoneId => {
       stats[zoneId] = {
-        name: zoneNames[zoneId],
-        made: 0,
-        attempts: 0,
-        percentage: 0
+        name: zoneNames[zoneId],     // Human-readable zone name
+        made: 0,                     // Successful shots in this zone
+        attempts: 0,                 // Total shots attempted in this zone
+        percentage: 0                // Shooting percentage (calculated below)
       };
     });
 
-    // Count shots by zone
+    /**
+     * SHOT PROCESSING: Aggregate shot data by zone
+     * 
+     * Iterates through all shots in current session and increments
+     * appropriate zone counters for makes and attempts
+     */
     shots.forEach(shot => {
       if (stats[shot.location]) {
-        stats[shot.location].attempts++;
+        stats[shot.location].attempts++;      // Increment total attempts for this zone
         if (shot.made) {
-          stats[shot.location].made++;
+          stats[shot.location].made++;        // Increment successful shots if made
         }
       }
     });
 
-    // Calculate percentages
+    /**
+     * PERCENTAGE CALCULATION: Compute shooting efficiency per zone
+     * 
+     * Calculates shooting percentage as (makes / attempts) * 100
+     * Handles division by zero with graceful fallback to 0%
+     * Rounds to whole percentages for clean display
+     */
     Object.keys(stats).forEach(zoneId => {
       const zone = stats[zoneId];
       zone.percentage = zone.attempts > 0 ? Math.round((zone.made / zone.attempts) * 100) : 0;
