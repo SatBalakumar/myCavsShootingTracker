@@ -1,51 +1,125 @@
+/**
+ * HOME PAGE COMPONENT STYLES
+ * 
+ * Purpose: Landing page styling for Cleveland Cavaliers shooting tracker
+ * Design Philosophy: Professional sports application with strong brand identity
+ * 
+ * Key Design Elements:
+ * 1. Full-viewport centering for immersive welcome experience
+ * 2. Cavaliers wine and gold color scheme throughout
+ * 3. High-contrast, accessible color combinations
+ * 4. Large, touch-friendly buttons for mobile compatibility
+ * 5. Professional typography with athletic styling
+ * 6. Subtle visual effects adding depth and polish
+ * 
+ * Visual Hierarchy:
+ * - Prominent title with gold coloring and text shadow
+ * - Contained content area with subtle gold accent background
+ * - Large, clearly labeled action buttons with hover effects
+ * - Professional spacing and proportions throughout
+ * 
+ * Accessibility Features:
+ * - High contrast text for readability
+ * - Large button targets for touch interfaces
+ * - Clear visual feedback on interactions
+ * - Semantic layout structure
+ */
+
+/**
+ * HOME PAGE CONTAINER: Full-viewport centering layout
+ * 
+ * Design Strategy:
+ * - Flexbox centering for perfect viewport positioning
+ * - Account for header height with calc() for precise centering
+ * - Full width utilization for responsive behavior
+ */
 .home-page {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: calc(100vh - 80px);
-  width: 100%;
+  display: flex;                        /* Flexbox for easy centering */
+  justify-content: center;              /* Horizontal centering */
+  align-items: center;                  /* Vertical centering */
+  min-height: calc(100vh - 80px);       /* Full viewport minus header space */
+  width: 100%;                          /* Full viewport width */
 }
 
+/**
+ * HOME CONTENT CARD: Central content container with Cavaliers branding
+ * 
+ * Visual Design:
+ * - Subtle gold background tint for brand consistency
+ * - Gold border creating professional frame effect
+ * - Generous padding for comfortable content spacing
+ * - Rounded corners for modern, approachable appearance
+ * - Drop shadow for depth and visual separation
+ */
 .home-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3rem;
-  padding: 2rem;
-  background-color: rgba(255, 184, 28, 0.1);
-  border-radius: 12px;
-  border: 3px solid #FFB81C;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  display: flex;                        /* Flexbox for content organization */
+  flex-direction: column;               /* Vertical content stacking */
+  align-items: center;                  /* Center all content horizontally */
+  gap: 3rem;                           /* Generous spacing between sections */
+  padding: 2rem;                       /* Comfortable internal padding */
+  background-color: rgba(255, 184, 28, 0.1);  /* Subtle Cavaliers gold tint */
+  border-radius: 12px;                 /* Modern rounded corners */
+  border: 3px solid #FFB81C;           /* Strong Cavaliers gold border */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);  /* Professional depth shadow */
 }
 
+/**
+ * HOME TITLE: Primary application branding
+ * 
+ * Typography Strategy:
+ * - Large, bold text for immediate brand recognition
+ * - Cavaliers gold color for brand consistency
+ * - Text shadow for depth and readability
+ * - Center alignment for balanced presentation
+ * - Zero margin for precise spacing control
+ */
 .home-title {
-  font-size: 2.5rem;
-  color: #FFB81C;
-  font-weight: bold;
-  text-align: center;
-  margin: 0;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+  font-size: 2.5rem;                   /* Large, prominent sizing */
+  color: #FFB81C;                      /* Cavaliers gold for brand identity */
+  font-weight: bold;                   /* Strong typography weight */
+  text-align: center;                  /* Centered presentation */
+  margin: 0;                           /* Remove default margins for precise control */
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);  /* Depth and readability enhancement */
 }
 
+/**
+ * BUTTON CONTAINER: Organization for primary action buttons
+ * 
+ * Layout Strategy:
+ * - Vertical stacking for clear hierarchy
+ * - Generous spacing between buttons for easy targeting
+ * - Maximum width constraint for optimal button proportions
+ * - Full width within container for consistent sizing
+ */
 .home-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  width: 100%;
-  max-width: 400px;
+  display: flex;                       /* Flexbox for button organization */
+  flex-direction: column;              /* Vertical button stacking */
+  gap: 1.5rem;                        /* Clear separation between buttons */
+  width: 100%;                        /* Full container width utilization */
+  max-width: 400px;                   /* Optimal button width constraint */
 }
 
+/**
+ * HOME BUTTON BASE: Shared styling for all primary action buttons
+ * 
+ * Design Elements:
+ * - Generous padding for easy touch interaction
+ * - Professional typography with uppercase styling
+ * - Smooth transitions for polished interactions
+ * - Letter spacing for athletic, professional appearance
+ * - Drop shadow for depth and button-like appearance
+ */
 .home-button {
-  padding: 1rem 2rem;
-  font-size: 1.2rem;
-  font-weight: bold;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  padding: 1rem 2rem;                 /* Generous padding for touch targets */
+  font-size: 1.2rem;                  /* Clear, readable font size */
+  font-weight: bold;                  /* Strong typography for clarity */
+  border: none;                       /* Clean appearance without borders */
+  border-radius: 8px;                 /* Modern rounded corners */
+  cursor: pointer;                    /* Indicate interactive element */
+  transition: all 0.3s ease;         /* Smooth state transitions */
+  text-transform: uppercase;          /* Athletic, professional styling */
+  letter-spacing: 1px;                /* Enhanced readability and style */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);  /* Professional depth effect */
 }
 
 .start-test-button {

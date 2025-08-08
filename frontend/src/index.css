@@ -1,53 +1,119 @@
+/**
+ * GLOBAL STYLES AND CSS RESET
+ * 
+ * Purpose: Foundation styles for Cleveland Cavaliers basketball shooting tracker
+ * Scope: Application-wide defaults, typography, and Cavaliers branding
+ * 
+ * Key Design Principles:
+ * 1. Cleveland Cavaliers wine (#6F263D) as primary background color
+ * 2. Modern, accessible typography with system font stack
+ * 3. Full-viewport utilization for immersive sports application
+ * 4. Responsive design foundation with mobile-first approach
+ * 5. Cross-browser compatibility and performance optimization
+ * 6. Accessibility features including high contrast and readable fonts
+ * 
+ * Visual Identity:
+ * - Primary: Cavaliers wine red (#6F263D) for backgrounds and depth
+ * - Secondary: Gold accents (#FFB81C) for highlights and interaction
+ * - Typography: System fonts for optimal performance and readability
+ * - Layout: Full-screen experience matching modern sports applications
+ */
+
+/**
+ * CSS CUSTOM PROPERTIES AND ROOT STYLES
+ * 
+ * Foundation Configuration:
+ * - System font stack for optimal performance across platforms
+ * - Line height optimized for readability in sports context
+ * - Color scheme supporting both light and dark mode preferences
+ * - Cavaliers wine background for consistent brand identity
+ * - Typography rendering optimizations for crisp text display
+ */
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;    /* Modern system font stack */
+  line-height: 1.5;                                               /* Optimal readability line spacing */
+  font-weight: 400;                                               /* Regular font weight baseline */
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #6F263D;
+  color-scheme: light dark;                                       /* Support system color preferences */
+  color: rgba(255, 255, 255, 0.87);                             /* High-contrast text color */
+  background-color: #6F263D;                                     /* Cleveland Cavaliers wine background */
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  font-synthesis: none;                                          /* Disable synthetic font generation */
+  text-rendering: optimizeLegibility;                            /* Optimize text rendering quality */
+  -webkit-font-smoothing: antialiased;                          /* Smooth font rendering on WebKit */
+  -moz-osx-font-smoothing: grayscale;                           /* Smooth font rendering on Firefox/macOS */
 }
 
+/**
+ * LINK STYLES: Navigation and interactive elements
+ * 
+ * Note: These are Vite template defaults, may be removed in future
+ * as the basketball application doesn't currently use traditional links
+ */
 a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
+  font-weight: 500;                                              /* Medium weight for link emphasis */
+  color: #646cff;                                                /* Default link color (Vite template) */
+  text-decoration: inherit;                                      /* Remove default underlines */
 }
 a:hover {
-  color: #535bf2;
+  color: #535bf2;                                                /* Hover state color variation */
 }
 
+/**
+ * BODY ELEMENT: Full-viewport application container
+ * 
+ * Critical Layout Requirements:
+ * - Zero margins/padding for edge-to-edge design
+ * - Full viewport height for immersive basketball experience
+ * - Overflow hidden to prevent scrolling issues
+ * - Cavaliers wine background for brand consistency
+ * - Minimum width ensures usability on small screens
+ */
 body {
-  margin: 0;
-  padding: 0;
-  min-width: 320px;
-  height: 100vh;
-  max-height: 100vh;
-  width: 100%;
-  background-color: #6F263D;
-  overflow-x: hidden;
-  overflow-y: hidden;
-  box-sizing: border-box;
+  margin: 0;                                                     /* Remove default browser margins */
+  padding: 0;                                                    /* Remove default browser padding */
+  min-width: 320px;                                             /* Minimum width for mobile usability */
+  height: 100vh;                                                /* Full viewport height */
+  max-height: 100vh;                                            /* Prevent height overflow */
+  width: 100%;                                                  /* Full viewport width */
+  background-color: #6F263D;                                    /* Cleveland Cavaliers wine background */
+  overflow-x: hidden;                                           /* Prevent horizontal scrolling */
+  overflow-y: hidden;                                           /* Prevent vertical scrolling */
+  box-sizing: border-box;                                       /* Include padding/border in sizing */
 }
 
+/**
+ * UNIVERSAL BOX SIZING: Consistent sizing calculation
+ * 
+ * Border-box sizing ensures padding and borders are included
+ * in element dimensions, making layout calculations predictable
+ * and preventing unexpected overflow issues
+ */
 *, *::before, *::after {
-  box-sizing: border-box;
+  box-sizing: border-box;                                       /* Include padding/border in sizing */
 }
 
+/**
+ * HEADING STYLES: Typography hierarchy
+ * 
+ * Large heading size appropriate for main titles and
+ * application branding elements
+ */
 h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+  font-size: 3.2em;                                            /* Large, prominent heading size */
+  line-height: 1.1;                                            /* Tight line spacing for impact */
 }
 
+/**
+ * BUTTON BASE STYLES: Interactive element foundation
+ * 
+ * Default button styling that will be extended by component-specific
+ * styles throughout the application
+ */
 button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
+  border-radius: 8px;                                          /* Modern rounded corners */
+  border: 1px solid transparent;                               /* Transparent border for consistent sizing */
+  padding: 0.6em 1.2em;                                       /* Comfortable padding for touch targets */
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;

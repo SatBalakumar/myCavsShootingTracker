@@ -1,42 +1,125 @@
+/**
+ * DOWNLOAD RESULTS COMPONENT
+ * 
+ * Purpose: Historical data access and export interface for basketball shooting analytics
+ * Context: Secondary workflow from home page for accessing and analyzing past sessions
+ * 
+ * Key Features:
+ * 1. Player-based session filtering with jersey number organization
+ * 2. Date range filtering for temporal analysis
+ * 3. Session preview with summary statistics
+ * 4. Flexible export options (individual sessions or bulk export)
+ * 5. CSV generation with detailed shot metadata
+ * 6. Error handling with clear user feedback
+ * 
+ * Data Export Strategy:
+ * - Individual session exports for detailed analysis
+ * - Bulk exports for comprehensive performance review
+ * - CSV format for compatibility with analytics tools
+ * - Detailed metadata including timing, location, and player information
+ * 
+ * User Experience Design:
+ * - Progressive disclosure: search → preview → select → export
+ * - Clear visual feedback during async operations
+ * - Jersey number-based player organization for sports context
+ * - Responsive layout adapting to mobile and desktop
+ */
+
 import React, { useState, useEffect } from 'react';
 import './DownloadResults.css';
 
+/**
+ * DOWNLOAD RESULTS COMPONENT: Historical shooting data access and export interface
+ * 
+ * Props:
+ * @param {Function} onBackToHome - Navigation callback to return to main menu
+ * @param {Object} shootingSessionManager - Firebase session management service
+ * @param {Function} downloadSessionReport - CSV generation and download utility
+ * 
+ * State Management:
+ * - Player data: Complete roster with jersey number sorting
+ * - Search criteria: Player selection and date range filtering
+ * - Results data: Session search results with preview information
+ * - UI state: Loading indicators, modal visibility, error handling
+ * - Selection state: Multiple session selection for bulk operations
+ */
 const DownloadResults = ({ 
   onBackToHome, 
   shootingSessionManager, 
   downloadSessionReport 
 }) => {
-  const [allPlayers, setAllPlayers] = useState([]);
-  const [selectedPlayer, setSelectedPlayer] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [searchResults, setSearchResults] = useState([]);
-  const [showDownloadModal, setShowDownloadModal] = useState(false);
-  const [showManualSelection, setShowManualSelection] = useState(false);
-  const [selectedSessions, setSelectedSessions] = useState(new Set());
-  const [errorMessage, setErrorMessage] = useState('');
-
-  // Load all players on component mount
+  /**
+   * PLAYER MANAGEMENT STATE
+   * Manages roster data and player selection for session filtering
+   */
+  const [allPlayers, setAllPlayers] = useState([]);           // Complete player roster with jersey numbers
+  const [selectedPlayer, setSelectedPlayer] = useState('');  // Currently selected player for filtering
+  
+  /**
+   * SEARCH CRITERIA STATE
+   * Date range filtering for temporal analysis of shooting performance
+   */
+  const [startDate, setStartDate] = useState('');            // Search start date (YYYY-MM-DD format)
+  const [endDate, setEndDate] = useState('');                // Search end date (YYYY-MM-DD format)
+  
+  /**
+   * RESULTS AND UI STATE
+   * Manages search results, loading states, and user interface controls
+   */
+  const [loading, setLoading] = useState(false);             // Boolean: async operation in progress
+  const [searchResults, setSearchResults] = useState([]);   // Array: sessions matching search criteria
+  const [showDownloadModal, setShowDownloadModal] = useState(false);     // Boolean: download options modal visibility
+  const [showManualSelection, setShowManualSelection] = useState(false); // Boolean: manual session selection mode
+  const [selectedSessions, setSelectedSessions] = useState(new Set());   // Set: selected sessions for bulk export
+  const [errorMessage, setErrorMessage] = useState('');     // String: user-facing error messages
+  
+  /**
+   * COMPONENT INITIALIZATION: Load player roster on mount
+   * 
+   * Why load all players immediately:
+   * - Provides immediate UI responsiveness for player selection
+   * - Enables client-side filtering and sorting
+   * - Supports offline functionality with cached data
+   * - Jersey number sorting improves sports-context usability
+   */
   useEffect(() => {
     loadAllPlayers();
   }, []);
 
+  /**
+   * PLAYER ROSTER LOADING: Fetch and organize complete player list
+   * 
+   * Jersey Number Sorting Strategy:
+   * 1. Players with jersey numbers: Sort numerically (1, 2, 3, ..., 99)
+   * 2. Players without jersey numbers: Sort alphabetically by name
+   * 3. Jersey-numbered players appear before non-numbered players
+   * 
+   * This sorting approach provides sports-appropriate organization
+   * that coaches and players expect in basketball applications
+   */
   const loadAllPlayers = async () => {
     try {
       setLoading(true);
       const players = await shootingSessionManager.getAllPlayers();
       
-      // Sort players by jersey number, then by name for players without jersey numbers
+      /**
+       * JERSEY NUMBER SORTING: Sports-context organization
+       * 
+       * Three-tier sorting hierarchy ensures logical player organization:
+       * - Tier 1: Numeric jersey number sorting (natural sports order)
+       * - Tier 2: Alphabetical sorting for players without numbers
+       * - Tier 3: Jersey players first, then alphabetical players
+       */
       const sortedPlayers = (players || []).sort((a, b) => {
-        // If both players have jersey numbers, sort by jersey number
+        // Both players have jersey numbers: numeric sort
         if (a.jerseyNumber && b.jerseyNumber) {
           return a.jerseyNumber - b.jerseyNumber;
         }
-        // If only one has a jersey number, put that one first
+        // Only player A has jersey number: A comes first
         if (a.jerseyNumber && !b.jerseyNumber) return -1;
+        // Only player B has jersey number: B comes first
         if (!a.jerseyNumber && b.jerseyNumber) return 1;
-        // If neither has a jersey number, sort alphabetically by name
+        // Neither has jersey number: alphabetical sort by name
         return a.name.localeCompare(b.name);
       });
       

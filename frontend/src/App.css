@@ -1,49 +1,111 @@
+/**
+ * MAIN APPLICATION STYLES
+ * 
+ * Purpose: Global styles and Cleveland Cavaliers branding for basketball shooting tracker
+ * Design System: Cavaliers wine (#6F263D) and gold (#FFB81C) color scheme
+ * 
+ * Key Design Principles:
+ * 1. Full viewport utilization for immersive sports application experience
+ * 2. Consistent Cavaliers branding throughout the interface
+ * 3. Professional sports application aesthetic with clean, modern styling
+ * 4. Accessible color contrasts meeting WCAG guidelines
+ * 5. Responsive design elements adapting to various screen sizes
+ * 
+ * Component Categories:
+ * - Root layout: Full-screen application container
+ * - Branding colors: Cavaliers wine and gold theme
+ * - Interactive controls: Mode toggles and navigation elements
+ * - Visual effects: Hover states and transitions
+ * - Legacy elements: Vite/React placeholder content (to be removed)
+ */
+
+/**
+ * ROOT LAYOUT: Full-screen application container
+ * 
+ * Design Decision: 100vh height ensures the application utilizes
+ * the entire viewport for an immersive basketball tracking experience.
+ * Zero margins and padding prevent browser default spacing issues.
+ */
 #root {
-  width: 100%;
-  height: 100vh;
-  margin: 0;
-  padding: 0;
+  width: 100%;                  /* Full viewport width */
+  height: 100vh;                /* Full viewport height for immersive experience */
+  margin: 0;                    /* Remove browser default margins */
+  padding: 0;                   /* Remove browser default padding */
 }
 
-/* Custom Cavs Colors */
+/**
+ * CAVALIERS BRANDING: Official team colors and identity
+ * 
+ * Cavaliers Wine (#6F263D): Primary brand color for backgrounds and emphasis
+ * Used throughout the application for consistent team branding
+ */
 .bg-cavs-wine {
-  background-color: #6F263D;
+  background-color: #6F263D;    /* Cleveland Cavaliers wine red */
 }
 
-/* Mode Toggle Styles */
+/**
+ * MODE TOGGLE COMPONENT: Court/Zone button interface switcher
+ * 
+ * Design Philosophy:
+ * - Clear visual distinction between active and inactive states
+ * - Cavaliers color scheme for brand consistency
+ * - Professional sports application aesthetic
+ * - Smooth transitions for polished user experience
+ * 
+ * Visual Hierarchy:
+ * - Wine background with gold accents
+ * - Active state uses inverted colors (gold background, wine text)
+ * - Hover states provide immediate feedback
+ * - Border and shadow details add depth and professionalism
+ */
 .mode-toggle {
-  display: flex;
-  background-color: #6F263D !important;
-  border-radius: 8px;
-  padding: 4px;
-  gap: 4px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-  border: 2px solid #FFB81C;
+  display: flex;                              /* Horizontal button layout */
+  background-color: #6F263D !important;      /* Cavaliers wine background */
+  border-radius: 8px;                        /* Rounded corners for modern look */
+  padding: 4px;                              /* Internal spacing for button containment */
+  gap: 4px;                                  /* Space between toggle buttons */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3); /* Subtle depth effect */
+  border: 2px solid #FFB81C;                 /* Cavaliers gold border accent */
 }
 
 .toggle-button {
-  padding: 0.5rem 1.5rem !important;
-  font-size: 0.9rem !important;
-  font-weight: bold !important;
-  border: none !important;
-  border-radius: 6px !important;
-  cursor: pointer !important;
-  transition: all 0.3s ease !important;
-  background-color: transparent !important;
-  color: #FFB81C !important;
+  padding: 0.5rem 1.5rem !important;        /* Generous padding for touch targets */
+  font-size: 0.9rem !important;             /* Readable font size */
+  font-weight: bold !important;             /* Strong typography for clarity */
+  border: none !important;                  /* Clean appearance without borders */
+  border-radius: 6px !important;           /* Rounded button corners */
+  cursor: pointer !important;               /* Indicate interactive element */
+  transition: all 0.3s ease !important;    /* Smooth state transitions */
+  background-color: transparent !important; /* Default: transparent background */
+  color: #FFB81C !important;                /* Cavaliers gold text */
 }
 
+/**
+ * TOGGLE BUTTON INTERACTION STATES
+ * 
+ * Hover State: Subtle gold background tint provides immediate feedback
+ * Active State: Full color inversion (gold background, wine text) for clear selection
+ */
 .toggle-button:hover {
-  background-color: rgba(255, 184, 28, 0.2) !important;
-  color: #FFB81C !important;
+  background-color: rgba(255, 184, 28, 0.2) !important; /* Subtle gold tint on hover */
+  color: #FFB81C !important;                             /* Maintain gold text color */
 }
 
 .toggle-button.active {
-  background-color: #FFB81C !important;
-  color: #6F263D !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+  background-color: #FFB81C !important;                  /* Active: gold background */
+  color: #6F263D !important;                             /* Active: wine text */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important; /* Enhanced depth for active state */
 }
 
+/**
+ * LEGACY VITE/REACT ELEMENTS
+ * 
+ * Note: The following styles are from the Vite React template.
+ * These should be removed in future cleanup as they're not used
+ * in the basketball shooting tracker application.
+ * 
+ * Keeping temporarily to avoid breaking any unexpected dependencies.
+ */
 .logo {
   height: 6em;
   padding: 1.5em;

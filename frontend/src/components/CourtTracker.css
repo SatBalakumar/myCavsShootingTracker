@@ -1,53 +1,126 @@
+/**
+ * COURT TRACKER COMPONENT STYLES
+ * 
+ * Purpose: Visual styling for interactive basketball court shooting interface
+ * Design Focus: Desktop-optimized precision clicking with responsive fallbacks
+ * 
+ * Key Design Principles:
+ * 1. Responsive court image scaling maintaining aspect ratio
+ * 2. Precise SVG overlay positioning for accurate zone detection
+ * 3. Clear visual feedback for interactive elements
+ * 4. Professional sports application aesthetic
+ * 5. Accessibility considerations for color contrast and interaction
+ * 
+ * Layout Strategy:
+ * - Centered court layout with maximum viewport utilization
+ * - Flexible sizing respecting viewport constraints
+ * - Overflow prevention for various screen sizes
+ * - Absolute positioning for precise zone overlay alignment
+ * 
+ * Interactive Elements:
+ * - SVG zones with hover states and visual feedback
+ * - Zone grouping for organized statistics display
+ * - Developer tools integration for zone creation/editing
+ */
+
+/**
+ * COURT WRAPPER: Main container for court component
+ * 
+ * Design Philosophy:
+ * - Centered layout for professional presentation
+ * - Flexible width with maximum viewport respect
+ * - Minimal gaps and margins for space efficiency
+ * - Hidden horizontal overflow prevents layout issues
+ */
 .court-wrapper-single {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  margin: 0.5rem auto;
-  width: 100%;
-  max-width: 100vw;
-  height: auto;
-  box-sizing: border-box;
-  overflow-x: hidden;
+  display: flex;                    /* Flexbox for easy centering */
+  flex-direction: column;           /* Vertical stacking of elements */
+  align-items: center;              /* Horizontal centering */
+  justify-content: center;          /* Vertical centering */
+  gap: 0.5rem;                      /* Minimal spacing between elements */
+  margin: 0.5rem auto;              /* Minimal margin with auto-centering */
+  width: 100%;                      /* Full available width */
+  max-width: 100vw;                 /* Respect viewport width limits */
+  height: auto;                     /* Dynamic height based on content */
+  box-sizing: border-box;           /* Include padding/border in sizing */
+  overflow-x: hidden;               /* Prevent horizontal scrolling issues */
 }
 
+/**
+ * ZONE GROUP LAYOUT: Organization for court zone elements
+ * 
+ * Supports both horizontal and vertical zone arrangements
+ * based on responsive design requirements and space availability
+ */
 .court-zone-group.vertical {
-  flex-direction: column;
+  flex-direction: column;           /* Vertical stacking for narrow screens */
 }
 
+/**
+ * COURT CONTAINER: Positioning context for court image and overlays
+ * 
+ * Critical Design Requirements:
+ * - Relative positioning enables absolute-positioned overlays
+ * - Inline-block allows natural sizing with precise positioning
+ * - Auto margins ensure consistent centering
+ * - Box-sizing prevents unexpected layout shifts
+ */
 .court-container {
-  position: relative;
-  display: inline-block;
-  width: 100%;
-  max-width: 100%;
-  height: auto;
-  margin: 0 auto;
-  box-sizing: border-box;
+  position: relative;               /* Positioning context for SVG overlays */
+  display: inline-block;            /* Natural sizing with positioning capability */
+  width: 100%;                      /* Full container width */
+  max-width: 100%;                  /* Prevent overflow issues */
+  height: auto;                     /* Dynamic height based on image aspect ratio */
+  margin: 0 auto;                   /* Center within parent */
+  box-sizing: border-box;           /* Consistent sizing calculations */
 }
 
+/**
+ * COURT IMAGE: Basketball court background with responsive scaling
+ * 
+ * Responsive Strategy:
+ * - 100% width with auto height maintains aspect ratio
+ * - Max-height constraint prevents excessive vertical space usage
+ * - Object-fit contain ensures complete image visibility
+ * - Block display prevents inline spacing issues
+ */
 .court-image {
-  width: 100%;
-  height: auto;
-  max-width: 100%;
-  max-height: 60vh;
-  display: block;
-  margin: 0 auto;
-  box-sizing: border-box;
-  object-fit: contain;
+  width: 100%;                      /* Full container width */
+  height: auto;                     /* Maintain aspect ratio */
+  max-width: 100%;                  /* Prevent container overflow */
+  max-height: 60vh;                 /* Limit vertical space usage */
+  display: block;                   /* Remove inline spacing */
+  margin: 0 auto;                   /* Center horizontally */
+  box-sizing: border-box;           /* Consistent sizing behavior */
+  object-fit: contain;              /* Preserve entire image within bounds */
 }
 
+/**
+ * SVG OVERLAY: Interactive zone layer positioned over court image
+ * 
+ * Critical Positioning Requirements:
+ * - Absolute positioning relative to court container
+ * - 100% dimensions for perfect image alignment
+ * - Pointer events enabled for user interaction
+ * - Z-index management for proper layering
+ */
 .court-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: auto;
+  position: absolute;               /* Position over court image */
+  top: 0;                          /* Align to container top */
+  left: 0;                         /* Align to container left */
+  width: 100%;                     /* Match container width */
+  height: 100%;                    /* Match container height */
+  pointer-events: auto;            /* Enable user interaction */
 }
 
+/**
+ * ZONE GROUP POSITIONING: Container for grouped zone elements
+ * 
+ * Absolute positioning allows precise placement of zone-related
+ * UI elements (statistics, labels, interactive controls)
+ */
 .court-zone-group {
-  position: absolute;
+  position: absolute;               /* Precise positioning over court */
   display: flex;
   gap: 6px;
   transform: translate(-50%, -50%);

@@ -1,26 +1,96 @@
+/**
+ * ZONE BUTTONS COMPONENT
+ * 
+ * Purpose: Touch-optimized shooting interface for mobile and tablet devices
+ * Context: Alternative to interactive court for devices where precision clicking is difficult
+ * 
+ * Design Philosophy:
+ * - Large, easily tappable buttons optimized for finger interaction
+ * - Clear visual feedback with make/miss color coding
+ * - Real-time statistics display for immediate performance feedback
+ * - Responsive layout adapting to device orientation and screen size
+ * - Zone ordering options for user preference and handedness accommodation
+ * 
+ * Key Features:
+ * 1. Dual-button design: separate Make/Miss buttons for each court zone
+ * 2. Real-time shot statistics with visual progress indicators
+ * 3. Orientation-aware layout optimization (portrait vs landscape)
+ * 4. Configurable zone ordering for user preference
+ * 5. Global undo functionality for error correction
+ * 6. Session state validation and visual feedback
+ * 
+ * Accessibility Considerations:
+ * - High contrast colors for clear make/miss distinction
+ * - Large touch targets meeting mobile accessibility guidelines
+ * - Clear labeling with zone names and statistics
+ * - Visual feedback for successful interactions
+ */
+
 import React from 'react';
 import './ZoneButtons.css';
 import { getEasternTimeISO } from '../utils/timezone';
 
+/**
+ * COURT ZONES DEFINITION: Basketball court shooting areas
+ * 
+ * Mirrors the zones defined in CourtTracker component for data consistency
+ * Simplified structure for button interface (no polygon coordinates needed)
+ * 
+ * Zone Selection Rationale:
+ * - Covers all primary shooting areas on a basketball court
+ * - Matches traditional basketball analytics zones
+ * - Provides comprehensive coverage without overwhelming complexity
+ */
 const COURT_ZONES = [
-  { id: 'left_corner', label: 'Left Corner' },
-  { id: 'left_wing', label: 'Left Wing' },
-  { id: 'top_key', label: 'Top of Key' },
-  { id: 'right_wing', label: 'Right Wing' },
-  { id: 'right_corner', label: 'Right Corner' },
+  { id: 'left_corner', label: 'Left Corner' },     // Corner three-point shots
+  { id: 'left_wing', label: 'Left Wing' },         // Wing three-point shots
+  { id: 'top_key', label: 'Top of Key' },          // Paint and free throw area
+  { id: 'right_wing', label: 'Right Wing' },       // Wing three-point shots (right side)
+  { id: 'right_corner', label: 'Right Corner' },   // Corner three-point shots (right side)
 ];
 
-// Helper function to format numbers with leading zeros (always 2 digits)
+/**
+ * UTILITY FUNCTION: Format numbers with leading zeros for consistent display
+ * 
+ * @param {number} num - Number to format
+ * @returns {string} Two-digit string with leading zero if needed
+ * 
+ * Why this matters:
+ * - Maintains consistent visual alignment in statistics display
+ * - Professional appearance matches sports scoreboard conventions
+ * - Prevents layout shifts when numbers change from single to double digits
+ */
 const formatStatNumber = (num) => {
   return num.toString().padStart(2, '0');
 };
 
+/**
+ * ZONE BUTTONS COMPONENT: Touch-optimized shooting interface
+ * 
+ * Props Structure:
+ * @param {Array} shots - Array of shot objects for current session
+ * @param {Function} setShots - State setter for updating shots array
+ * @param {Object} currentPlayer - Selected player information
+ * @param {Function} onShot - Callback fired when shot is recorded
+ * @param {Function} onUndoLastShot - Callback for undo last shot operation
+ * @param {boolean} sessionStarted - Whether shooting session is active
+ * @param {boolean} sessionPaused - Whether session is temporarily paused
+ * @param {number} currentElapsedTime - Milliseconds since session start
+ * @param {Object} windowDimensions - Current window size for responsive behavior
+ * @param {number} orientation - Device orientation (0, 90, -90, 180)
+ * @param {boolean} isIPhoneLandscape - Specific iPhone landscape detection
+ * @param {number} appRenderKey - Forces re-render when needed
+ * @param {boolean} isReversed - Whether zone order is reversed for user preference
+ * @param {number} lastUndoShotTime - Timer value from undone shot for timing accuracy
+ * @param {Function} setLastUndoShotTime - Clears undo timer after use
+ * @param {Function} setIsReversed - Toggles zone order preference
+ */
 const ZoneButtons = ({ 
   shots, 
   setShots, 
   currentPlayer, 
   onShot, 
-  onUndoLastShot, // Changed from onUndoZoneShot to onUndoLastShot
+  onUndoLastShot,                    // Global undo for last shot (any zone)
   sessionStarted, 
   sessionPaused, 
   currentElapsedTime,
@@ -28,23 +98,41 @@ const ZoneButtons = ({
   orientation,
   isIPhoneLandscape,
   appRenderKey,
-  isReversed,
+  isReversed,                        // User preference: reverse zone order
   lastUndoShotTime,
   setLastUndoShotTime,
-  setIsReversed
+  setIsReversed                      // Toggle function for zone order
 }) => {
-  // Add safety checks for props
+  /**
+   * SAFETY VALIDATION: Defensive programming for prop integrity
+   * 
+   * Critical props validation prevents runtime errors and provides clear feedback
+   * when component is used incorrectly or during React lifecycle transitions
+   */
   if (!shots || !setShots || typeof setShots !== 'function') {
     console.error('ZoneButtons: Missing required props (shots, setShots)');
     return <div>Loading...</div>;
   }
 
-  // Use orientation data from App component if available, fallback to local detection
+  /**
+   * RESPONSIVE DESIGN: Calculate effective dimensions and device characteristics
+   * 
+   * Prioritizes parent-provided dimensions over local window measurements
+   * for consistent behavior across the application's responsive system
+   */
   const effectiveWindowDimensions = windowDimensions || {
     width: window.innerWidth,
     height: window.innerHeight
   };
   
+  /**
+   * IPHONE LANDSCAPE DETECTION: Specific handling for iPhone layout constraints
+   * 
+   * iPhone landscape mode has unique layout challenges:
+   * - Home indicator takes bottom space
+   * - Notch/Dynamic Island affects top space
+   * - Shorter viewport height requires compact layouts
+   */
   const effectiveIsIPhoneLandscape = isIPhoneLandscape || (() => {
     return /iPhone/i.test(navigator.userAgent) && 
            effectiveWindowDimensions.height < effectiveWindowDimensions.width && 
