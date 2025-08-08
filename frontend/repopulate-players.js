@@ -2,13 +2,13 @@
 import { initializeSampleData } from './src/firebase/services.js';
 
 async function repopulatePlayers() {
-  console.log('🏀 Starting to repopulate Cavaliers players...');
+  console.log('Starting to repopulate Cavaliers players...');
   
   try {
     const result = await initializeSampleData();
     
     if (result) {
-      console.log('✅ Successfully added all 14 Cavaliers players to Firebase!');
+      console.log('Successfully added all 14 Cavaliers players to Firebase!');
       console.log('Players added:');
       console.log('- Donovan Mitchell #45 (SG)');
       console.log('- Darius Garland #10 (PG)');
@@ -28,7 +28,7 @@ async function repopulatePlayers() {
       console.log('ℹ️ Players already exist in the database');
     }
   } catch (error) {
-    console.error('❌ Error repopulating players:', error.message);
+    console.error('Error repopulating players:', error.message);
     console.error('Full error:', error);
   }
 }

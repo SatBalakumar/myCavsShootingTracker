@@ -1,18 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useLayoutEffect, useCallback } from 'react';
 import HomePage from './components/HomePage';
 import PlayerSelection from './components/PlayerSelection';
 import CourtTracker from './components/CourtTracker';
 import ZoneButtons from './components/ZoneButtons';
 import HistoryLog from './components/HistoryLog';
+import ShootingStatistics from './components/ShootingStatistics';
+import DownloadResults from './components/DownloadResults';
 import { AppBar, Toolbar, Box, Typography } from '@mui/material';
 import { shootingSessionManager } from './firebase/sessionManager';
+import { getEasternTimeISO } from './utils/timezone';
+import { addCavsRoster } from './utils/addRoster';
+
+// Make addCavsRoster available globally for console use
+window.addCavsRoster = addCavsRoster;
 
 function App() {
   const [shots, setShots] = useState([]);
+  const [lastUndoShotTime, setLastUndoShotTime] = useState(null); // Store time for undone shot
   const [isMapMode, setIsMapMode] = useState(true);
   const [currentPage, setCurrentPage] = useState('home'); // 'home', 'playerSelection', 'shootingTest'
   const [selectedPlayer, setSelectedPlayer] = useState(null); // Changed to object
   const [showEndSessionDialog, setShowEndSessionDialog] = useState(false);
+  const [showDiscardConfirmDialog, setShowDiscardConfirmDialog] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [showResultsDialog, setShowResultsDialog] = useState(false);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
@@ -25,31 +34,113 @@ function App() {
   const [lastPauseTime, setLastPauseTime] = useState(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   
+  // Zone order state (persists through orientation changes)
+  const [isReversed, setIsReversed] = useState(false);
+  
+  // Global orientation and window dimension state
+  const [windowDimensions, setWindowDimensions] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight
+  });
+  const [orientation, setOrientation] = useState(window.orientation || 0);
+  const [appRenderKey, setAppRenderKey] = useState(0); // Force app-wide re-renders
+  
   // Firebase session management
   const [currentFirebaseSession, setCurrentFirebaseSession] = useState(null);
   const [firebaseSessionError, setFirebaseSessionError] = useState(null);
 
-  // Mobile phone detection (excludes tablets)
-  const isMobilePhone = /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) && !/iPad|tablet/i.test(navigator.userAgent) && window.innerWidth <= 480;
+  // State to track coach actions locally for CSV export
+  const [coachActions, setCoachActions] = useState([]);
 
-  // Mobile device detection (includes tablets) - for hiding court mode
-  const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|tablet/i.test(navigator.userAgent) || 
-                         (/Mobi|Android/i.test(navigator.userAgent)) || 
-                         (window.innerWidth <= 1024);
+  // Function to log coach actions locally
+  const logCoachAction = (actionType, additionalData = {}) => {
+    const coachAction = {
+      actionType,
+      timestamp: getEasternTimeISO(),
+      elapsedTime: elapsedTime,
+      sequenceNumber: shots.length + coachActions.length + 1,
+      ...additionalData
+    };
+    setCoachActions(prev => [...prev, coachAction]);
+    console.log('Coach action logged:', coachAction);
+  };
+
+  // Enhanced device detection using dynamic window dimensions
+  const isMobilePhone = useCallback(() => {
+    return /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) && 
+           !/iPad|tablet/i.test(navigator.userAgent) && 
+           windowDimensions.width <= 480;
+  }, [windowDimensions]);
+
+  const isMobileDevice = useCallback(() => {
+    // Only detect actual mobile/tablet devices, not just small desktop windows
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|tablet/i.test(navigator.userAgent) || 
+           (/Mobi|Android/i.test(navigator.userAgent)) || 
+           (('ontouchstart' in window) && windowDimensions.width <= 768); // Only mobile if touch AND small screen
+  }, [windowDimensions]);
+
+  const isIPhoneLandscape = useCallback(() => {
+    return /iPhone/i.test(navigator.userAgent) && 
+           windowDimensions.height < windowDimensions.width && 
+           windowDimensions.height <= 500;
+  }, [windowDimensions]);
+
+  // Global orientation change handlers
+  const handleResize = useCallback(() => {
+    const newDimensions = {
+      width: window.innerWidth,
+      height: window.innerHeight
+    };
+    console.log('App: Resize detected', newDimensions); // Debug log
+    setWindowDimensions(newDimensions);
+    setAppRenderKey(prev => prev + 1); // Force app-wide re-render
+  }, []);
+
+  const handleOrientationChange = useCallback(() => {
+    setTimeout(() => {
+      const newDimensions = {
+        width: window.innerWidth,
+        height: window.innerHeight
+      };
+      console.log('App: Orientation changed', newDimensions); // Debug log
+      setOrientation(window.orientation || 0);
+      setWindowDimensions(newDimensions);
+      setAppRenderKey(prev => prev + 1); // Force app-wide re-render
+    }, 150); // Allow viewport to settle
+  }, []);
+
+  // Set up global orientation listeners
+  useLayoutEffect(() => {
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleOrientationChange);
+    
+    // iOS Safari visual viewport support
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleResize);
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleOrientationChange);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleResize);
+      }
+    };
+  }, [handleResize, handleOrientationChange]);
 
   // Force Zone Buttons mode on mobile phones
   React.useEffect(() => {
-    if (isMobilePhone && isMapMode) {
+    if (isMobilePhone() && isMapMode) {
       setIsMapMode(false);
     }
-  }, [isMobilePhone, isMapMode]);
+  }, [isMobilePhone, isMapMode, windowDimensions]);
 
   // Force Zone Buttons mode on mobile devices (including tablets) since they can't access court mode
   React.useEffect(() => {
-    if (isMobileDevice && isMapMode) {
+    if (isMobileDevice() && isMapMode) {
       setIsMapMode(false);
     }
-  }, [isMobileDevice, isMapMode]);
+  }, [isMobileDevice, isMapMode, windowDimensions]);
 
   // Timer effect
   React.useEffect(() => {
@@ -64,6 +155,14 @@ function App() {
     return () => clearInterval(interval);
   }, [sessionStarted, sessionPaused, startTime, totalPausedTime]);
 
+  // Auto-complete session when 100 shots are reached
+  React.useEffect(() => {
+    if (sessionStarted && shots.length === 100) {
+      console.log('100 shots reached, auto-completing session');
+      handleEndSession();
+    }
+  }, [shots.length, sessionStarted]);
+
   const formatTime = (milliseconds) => {
     const totalSeconds = Math.floor(milliseconds / 1000);
     const minutes = Math.floor(totalSeconds / 60);
@@ -76,80 +175,165 @@ function App() {
   };
 
   const handleDownloadResults = () => {
-    downloadSessionReport();
+    // Navigate to download search interface
+    setCurrentPage('downloadResults');
   };
 
-  const generateSessionReport = () => {
-    const sessionEnd = new Date();
-    const sessionDuration = Math.floor((sessionEnd - sessionStartTime) / 1000); // in seconds
-    const zones = calculateZoneStats();
-    const overallAccuracy = shots.length > 0 ? Math.round((shots.filter(s => s.made).length / shots.length) * 100) : 0;
+  const handleBackToHomeFromDownload = () => {
+    setCurrentPage('home');
+  };
+
+  const handleDownloadAuditLog = () => {
+    // Download complete session audit log with coach actions
+    if (shots.length === 0) {
+      alert('No shooting session data available to download. Please complete a shooting test first.');
+      return;
+    }
     
-    // CSV format
+    if (!selectedPlayer) {
+      alert('No player selected. Please ensure you have completed a shooting test.');
+      return;
+    }
+    
+    downloadSessionReport('audit');
+  };
+
+  const generateAnalyticsReport = () => {
+    // ANALYTICS MODE - Clean shot data only, no coach actions
+    // This is what analytics teams want - just the final shots after all undos
+    const logID = currentFirebaseSession?.logID || `session_${Date.now()}`;
+    const playerID = selectedPlayer?.id || selectedPlayer?.name?.replace(/\s+/g, '_').toLowerCase() || 'unknown_player';
+    
     const csvContent = [
-      // Header
-      ['Cavs Shooting Tracker - Session Report'],
-      [''],
-      ['Player Information'],
-      ['Player Name', selectedPlayer?.name || 'Unknown'],
-      ['Jersey Number', selectedPlayer?.jerseyNumber || 'N/A'],
-      ['Position', selectedPlayer?.position || 'N/A'],
-      ['Session Type', selectedPlayer?.isGuest ? 'Guest Session' : 'Regular Session'],
-      [''],
-      ['Session Summary'],
-      ['Start Time', sessionStartTime.toLocaleString()],
-      ['End Time', sessionEnd.toLocaleString()],
-      ['Duration (seconds)', sessionDuration],
-      ['Total Shots', shots.length],
-      ['Made Shots', shots.filter(s => s.made).length],
-      ['Missed Shots', shots.filter(s => !s.made).length],
-      ['Overall Accuracy (%)', overallAccuracy],
-      [''],
-      ['Zone Statistics'],
-      ['Zone', 'Attempts', 'Made', 'Missed', 'Accuracy (%)', 'Time Spent (s)'],
-      ...zones.map(zone => [
-        zone.label,
-        zone.attempts,
-        zone.made,
-        zone.missed,
-        zone.percentage,
-        zone.timeSpent
-      ]),
-      [''],
-      ['Shot Details'],
-      ['Shot #', 'Zone', 'Result', 'Timestamp'],
+      // Header row - simplified for analytics
+      ['playerID', 'logID', 'shot_result', 'shot_zone', 'time_taken', 'timestamp', 'sequence_number'],
+      
+      // Only player shots - no coach actions, no action_type column needed
       ...shots.map((shot, index) => [
-        index + 1,
-        shot.location,
-        shot.made ? 'Made' : 'Missed',
-        new Date(shot.timestamp).toLocaleString()
+        playerID,
+        logID,
+        shot.made ? 'made' : 'missed', // shot_result
+        shot.location, // shot_zone
+        shot.timeTakenForShot || shot.timerValue || 0, // time_taken (prefer new timing method)
+        shot.timestamp, // timestamp
+        index + 1 // sequence_number
       ])
     ];
 
     return csvContent.map(row => row.join(',')).join('\n');
   };
 
-  const downloadSessionReport = () => {
-    const csvContent = generateSessionReport();
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
+  const generateSessionReport = () => {
+    // AUDIT MODE - Complete session log with both player actions and coach actions
+    // Generate a unique session ID if we don't have a Firebase session
+    const logID = currentFirebaseSession?.logID || `session_${Date.now()}`;
+    const playerID = selectedPlayer?.id || selectedPlayer?.name?.replace(/\s+/g, '_').toLowerCase() || 'unknown_player';
     
-    if (link.download !== undefined) {
-      const url = URL.createObjectURL(blob);
-      const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-      const playerName = selectedPlayer?.name?.replace(/\s+/g, '_') || 'Unknown';
-      const filename = `Cavs_Shooting_${playerName}_${timestamp}.csv`;
+    // Create comprehensive CSV with both player actions (shots) and coach actions (session events)
+    const csvContent = [
+      // Header row with enhanced columns to separate player vs coach actions
+      ['playerID', 'logID', 'action_type', 'event_type', 'shot_result', 'shot_zone', 'time_taken', 'timestamp', 'sequence_number'],
       
-      link.setAttribute('href', url);
-      link.setAttribute('download', filename);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // Player Actions (Shots) - marked as 'player' action_type
+      ...shots.map((shot, index) => [
+        playerID,
+        logID,
+        'player', // action_type
+        shot.made ? 'shot_made' : 'shot_missed', // event_type
+        shot.made ? 'made' : 'missed', // shot_result (for compatibility)
+        shot.location, // shot_zone
+        shot.timeTakenForShot || shot.timerValue || 0, // time_taken (prefer new timing method)
+        shot.timestamp, // timestamp
+        index + 1 // sequence_number
+      ]),
+      
+      // Coach Actions (Session Events) - marked as 'coach' action_type
+      // Include all tracked coach actions from the session
+      ...coachActions.map((action, index) => [
+        playerID,
+        logID,
+        'coach', // action_type
+        action.actionType, // event_type (e.g., 'shot_undo_left_corner', 'session_pause', etc.)
+        '', // shot_result (N/A for coach actions)
+        action.zoneId || '', // shot_zone (populated for undo actions, empty for session events)
+        action.elapsedTime || 0, // time_taken
+        action.timestamp, // timestamp
+        action.sequenceNumber || (shots.length + index + 1) // sequence_number
+      ]),
+      
+      // Add basic session lifecycle events if not already tracked
+      [
+        playerID,
+        logID,
+        'coach', // action_type
+        'session_start', // event_type
+        '', // shot_result (N/A for coach actions)
+        '', // shot_zone (N/A for coach actions)
+        0, // time_taken (session start)
+        startTime ? new Date(startTime).toISOString() : getEasternTimeISO(), // timestamp
+        0 // sequence_number (session start)
+      ],
+      
+      // Add session end event
+      [
+        playerID,
+        logID,
+        'coach', // action_type
+        'session_end', // event_type
+        '', // shot_result (N/A)
+        '', // shot_zone (N/A)
+        elapsedTime || 0, // time_taken (total session time)
+        getEasternTimeISO(), // timestamp (current time)
+        shots.length + coachActions.length + 1 // sequence_number (after all events)
+      ]
+    ];
+
+    return csvContent.map(row => row.join(',')).join('\n');
+  };
+
+  const downloadSessionReport = (mode = 'analytics') => {
+    if (shots.length === 0) {
+      alert('No shots taken yet. Cannot generate report.');
+      return;
+    }
+
+    try {
+      let csvContent;
+      let filename;
+      
+      if (mode === 'analytics') {
+        // Clean data for analytics - shots only, no coach actions
+        csvContent = generateAnalyticsReport();
+        filename = `analytics_${selectedPlayer?.name || 'player'}_${getEasternTimeISO().slice(0, 10)}.csv`;
+      } else {
+        // Complete audit trail with coach actions
+        csvContent = generateSessionReport();
+        filename = `session_audit_${selectedPlayer?.name || 'player'}_${getEasternTimeISO().slice(0, 10)}.csv`;
+      }
+      
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      
+      if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        console.log(`Shooting data exported: ${filename}`);
+      }
+    } catch (error) {
+      console.error('Error generating report:', error);
+      alert('Failed to generate report. Please try again.');
     }
   };
 
   const handlePlayerSelected = (playerObject) => {
+    console.log('Player selected:', playerObject); // Debug log
     setSelectedPlayer(playerObject); // Now receives full player object
     setShots([]); // Reset shots for new test
     setSessionStarted(false);
@@ -160,18 +344,26 @@ function App() {
     // Clear any previous Firebase errors when starting fresh
     setFirebaseSessionError(null);
     setCurrentFirebaseSession(null);
+    console.log('Navigating to shooting test page'); // Debug log
   };
 
   const handleStartSession = async () => {
     try {
       setFirebaseSessionError(null);
       
-      // Start Firebase session
-      console.log('Starting Firebase session for player:', selectedPlayer);
-      const firebaseSession = await shootingSessionManager.startShootingSession(selectedPlayer.id);
-      setCurrentFirebaseSession(firebaseSession);
+      // Check if this is a guest session - if so, skip Firebase entirely
+      if (selectedPlayer?.isGuest) {
+        console.log('Starting guest session - skipping Firebase');
+        setCurrentFirebaseSession(null);
+      } else {
+        // Start Firebase session for regular players only
+        console.log('Starting Firebase session for player:', selectedPlayer);
+        const firebaseSession = await shootingSessionManager.startShootingSession(selectedPlayer.id);
+        setCurrentFirebaseSession(firebaseSession);
+        console.log('Session started successfully:', firebaseSession);
+      }
       
-      // Start local session tracking
+      // Start local session tracking (for both guest and regular players)
       setSessionStarted(true);
       setSessionPaused(false);
       setStartTime(Date.now());
@@ -179,7 +371,12 @@ function App() {
       setLastPauseTime(null);
       setElapsedTime(0);
       
-      console.log('Session started successfully:', firebaseSession);
+      // Log coach action
+      logCoachAction('session_start', { 
+        playerName: selectedPlayer?.name,
+        sessionType: selectedPlayer?.isGuest ? 'guest' : 'regular'
+      });
+      
     } catch (error) {
       console.error('Error starting session:', error);
       setFirebaseSessionError(`Failed to start session: ${error.message}`);
@@ -203,6 +400,11 @@ function App() {
         setSessionPaused(false);
         setLastPauseTime(null);
         
+        // Log coach action
+        logCoachAction('session_resume', { 
+          pauseDuration: pauseDuration 
+        });
+        
         // Log resume event in Firebase
         if (currentFirebaseSession) {
           await shootingSessionManager.resumeSession(currentFirebaseSession, totalPausedTime + pauseDuration);
@@ -211,6 +413,9 @@ function App() {
         // Pause - record when we paused
         setSessionPaused(true);
         setLastPauseTime(Date.now());
+        
+        // Log coach action
+        logCoachAction('session_pause');
         
         // Log pause event in Firebase
         if (currentFirebaseSession) {
@@ -298,39 +503,50 @@ function App() {
     // The actual shot adding is handled in the individual components
   };
 
-  const handleUndoZoneShot = async (zoneId) => {
+  const handleUndoLastShot = async () => {
+    // Single undo button - undoes the most recent shot regardless of zone
+    if (shots.length === 0) {
+      console.log('No shots to undo');
+      return;
+    }
+    
+    const lastShot = shots[shots.length - 1];
+    const previousShotTime = shots.length > 1 ? shots[shots.length - 2].timerValue : 0;
+    const timeTakenForShot = lastShot.timerValue - previousShotTime;
+    
+    // Store the time it took for this shot so we can reuse it
+    setLastUndoShotTime(timeTakenForShot);
+    
+    // Log coach action with the specific zone
+    logCoachAction(`shot_undo_${lastShot.location}`, { 
+      zoneId: lastShot.location,
+      shotResult: lastShot.made ? 'made' : 'missed',
+      originalSequenceNumber: lastShot.sequenceNumber,
+      timeTakenForShot: timeTakenForShot
+    });
+    
+    // Remove the last shot
+    const newShots = [...shots];
+    newShots.pop();
+    setShots(newShots);
+    
+    // Attempt Firebase undo
     try {
-      // Only attempt Firebase undo if session is active AND we have shots
-      if (currentFirebaseSession && sessionStarted && shots.length > 0) {
-        console.log('Undoing shot in Firebase for zone:', zoneId);
-        const undoResult = await shootingSessionManager.undoLastShot(currentFirebaseSession, zoneId);
+      if (currentFirebaseSession && sessionStarted) {
+        console.log('Attempting to undo last shot in Firebase for zone:', lastShot.location);
+        const undoResult = await shootingSessionManager.undoLastShot(currentFirebaseSession, lastShot.location);
         
-        // Only log success if we actually undid something
         if (undoResult) {
           console.log('Shot undone successfully in Firebase:', undoResult);
         } else {
-          console.log('No shots found in zone to undo:', zoneId);
-          return; // Exit early if no shot to undo
+          console.log('No shots found in Firebase for zone:', lastShot.location, '(local undo still completed)');
         }
       }
     } catch (error) {
       console.error('Error undoing shot in Firebase:', error);
-      setFirebaseSessionError(`Failed to undo shot: ${error.message}`);
-      // Clear the error after 5 seconds
+      setFirebaseSessionError(`Failed to undo shot in Firebase: ${error.message}`);
       setTimeout(() => setFirebaseSessionError(null), 5000);
-      // Continue with local undo even if Firebase fails
     }
-    
-    // Find the last shot from this zone and remove it (local state)
-    const zoneShots = shots.filter(shot => shot.location === zoneId);
-    if (zoneShots.length === 0) return;
-    
-    const lastZoneShot = zoneShots[zoneShots.length - 1];
-    const lastZoneShotIndex = shots.lastIndexOf(lastZoneShot);
-    
-    const newShots = [...shots];
-    newShots.splice(lastZoneShotIndex, 1);
-    setShots(newShots);
   };
 
   const handleBackToHome = () => {
@@ -406,6 +622,13 @@ function App() {
     // Stop the session and timer immediately when End is pressed
     setSessionStarted(false);
     setSessionPaused(false);
+    
+    // Log coach action
+    logCoachAction('session_end', { 
+      totalShots: shots.length,
+      sessionDuration: elapsedTime 
+    });
+    
     setShowEndSessionDialog(true);
   };
 
@@ -440,10 +663,69 @@ function App() {
     }
   };
 
-  const handleDiscardResults = () => {
-    setShowEndSessionDialog(false);
-    setShots([]);
-    handleBackToHome();
+  const handleDiscardRequest = () => {
+    // Show confirmation dialog first
+    setShowDiscardConfirmDialog(true);
+  };
+
+  const handleConfirmDiscard = async () => {
+    try {
+      // If there's a Firebase session active, discard it completely
+      if (currentFirebaseSession && !selectedPlayer?.isGuest) {
+        console.log('Discarding Firebase session...');
+        await shootingSessionManager.discardSession(currentFirebaseSession);
+        console.log('Firebase session discarded successfully');
+      }
+      
+      // Reset all local state
+      setCurrentFirebaseSession(null);
+      setFirebaseSessionError(null);
+      setShowEndSessionDialog(false);
+      setShowDiscardConfirmDialog(false);
+      setShots([]);
+      handleBackToHome();
+    } catch (error) {
+      console.error('Error discarding session:', error);
+      // Still proceed with local cleanup even if Firebase cleanup fails
+      setCurrentFirebaseSession(null);
+      setFirebaseSessionError(null);
+      setShowEndSessionDialog(false);
+      setShowDiscardConfirmDialog(false);
+      setShots([]);
+      handleBackToHome();
+    }
+  };
+
+  const handleCancelDiscard = () => {
+    // Go back to the end session dialog
+    setShowDiscardConfirmDialog(false);
+    // showEndSessionDialog should remain true to go back to save/discard options
+  };
+
+  const handleDiscardResults = async () => {
+    try {
+      // If there's a Firebase session active, discard it completely
+      if (currentFirebaseSession && !selectedPlayer?.isGuest) {
+        console.log('Discarding Firebase session...');
+        await shootingSessionManager.discardSession(currentFirebaseSession);
+        console.log('Firebase session discarded successfully');
+      }
+      
+      // Reset all local state
+      setCurrentFirebaseSession(null);
+      setFirebaseSessionError(null);
+      setShowEndSessionDialog(false);
+      setShots([]);
+      handleBackToHome();
+    } catch (error) {
+      console.error('Error discarding session:', error);
+      // Still proceed with local cleanup even if Firebase cleanup fails
+      setCurrentFirebaseSession(null);
+      setFirebaseSessionError(null);
+      setShowEndSessionDialog(false);
+      setShots([]);
+      handleBackToHome();
+    }
   };
 
   const handleDownloadFromResults = () => {
@@ -458,12 +740,23 @@ function App() {
   };
 
   const renderContent = () => {
+    console.log('Rendering page:', currentPage, 'Selected player:', selectedPlayer); // Debug log
+    
     switch (currentPage) {
       case 'home':
         return (
           <HomePage 
             onStartNewTest={handleStartNewTest}
             onDownloadResults={handleDownloadResults}
+          />
+        );
+      
+      case 'downloadResults':
+        return (
+          <DownloadResults 
+            onBackToHome={handleBackToHomeFromDownload}
+            shootingSessionManager={shootingSessionManager}
+            downloadSessionReport={downloadSessionReport}
           />
         );
       
@@ -532,6 +825,32 @@ function App() {
                 }}>
                   Shot {shots.length}/100
                 </div>
+                
+                {/* Global Undo Button - Undoes last shot regardless of zone */}
+                <button 
+                  onClick={handleUndoLastShot}
+                  disabled={shots.length === 0}
+                  style={{
+                    padding: '0.5rem 0.75rem',
+                    fontSize: '0.85rem',
+                    fontWeight: 'bold',
+                    border: '2px solid #FFB81C',
+                    borderRadius: '6px',
+                    cursor: shots.length === 0 ? 'not-allowed' : 'pointer',
+                    backgroundColor: shots.length === 0 ? '#555' : '#DC3545',
+                    color: shots.length === 0 ? '#888' : '#FFB81C',
+                    opacity: shots.length === 0 ? 0.5 : 1,
+                    minWidth: '80px',
+                    minHeight: '36px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  Undo
+                </button>
+                
                 <button 
                   onClick={handleResetShots}
                   disabled={shots.length === 0}
@@ -583,7 +902,7 @@ function App() {
                 borderRadius: '4px',
                 border: '1px solid #4CAF50'
               }}>
-                🔥 Firebase Session Active: {currentFirebaseSession.logID?.slice(-8)}
+                Firebase Session Active: {currentFirebaseSession.logID?.slice(-8)}
               </div>
             )}
 
@@ -598,7 +917,7 @@ function App() {
                 borderRadius: '4px',
                 border: '1px solid #f44336'
               }}>
-                ⚠️ Firebase: {firebaseSessionError}
+                Warning Firebase: {firebaseSessionError}
               </div>
             )}
 
@@ -690,21 +1009,20 @@ function App() {
               </button>
             </div>
 
-            {/* Mode Toggle - Optimized for touch */}
-            {!isMobileDevice && (
-              <div className="mode-toggle" style={{ 
-                display: 'flex', 
-                backgroundColor: '#6F263D', 
-                borderRadius: '8px', 
-                padding: '3px', 
-                gap: '3px', 
-                border: '2px solid #FFB81C',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
-                width: '100%',
-                maxWidth: '100vw',
-                margin: '0 auto',
-                boxSizing: 'border-box'
-              }}>
+            {/* Mode Toggle - ALWAYS SHOW FOR DEBUGGING */}
+            <div className="mode-toggle" style={{ 
+              display: 'flex', 
+              backgroundColor: '#6F263D', 
+              borderRadius: '8px', 
+              padding: '3px', 
+              gap: '3px', 
+              border: '2px solid #FFB81C',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
+              width: '100%',
+              maxWidth: '100vw',
+              margin: '0 auto',
+              boxSizing: 'border-box'
+            }}>
                 {/* Only show Court View button on tablets and desktop */}
                 <button 
                   className={`toggle-button ${isMapMode ? 'active' : ''}`}
@@ -747,7 +1065,6 @@ function App() {
                   Zone Buttons
                 </button>
               </div>
-            )}
 
             {/* Main Content Area */}
             <div style={{
@@ -773,44 +1090,110 @@ function App() {
                 boxSizing: 'border-box'
               }}>
                 {isMapMode ? (
-                  <CourtTracker 
-                    shots={shots} 
-                    setShots={setShots} 
-                    currentPlayer={selectedPlayer?.name || 'Unknown Player'}
-                    onShot={handleShot}
-                    onUndoZoneShot={handleUndoZoneShot}
-                    sessionStarted={sessionStarted}
-                    sessionPaused={sessionPaused}
-                  />
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: window.innerWidth > 1024 ? 'row' : 'column',
+                    gap: '0.5rem',
+                    width: '100%',
+                    height: 'auto'
+                  }}>
+                    {/* Court Tracker */}
+                    <div style={{
+                      flex: window.innerWidth > 1024 ? '2' : '1',
+                      minWidth: '300px'
+                    }}>
+                      <CourtTracker 
+                        shots={shots} 
+                        setShots={setShots} 
+                        currentPlayer={selectedPlayer?.name || 'Unknown Player'}
+                        onShot={handleShot}
+                        onUndoLastShot={handleUndoLastShot}
+                        lastUndoShotTime={lastUndoShotTime}
+                        setLastUndoShotTime={setLastUndoShotTime}
+                        sessionStarted={sessionStarted}
+                        sessionPaused={sessionPaused}
+                        currentElapsedTime={elapsedTime}
+                        windowDimensions={windowDimensions}
+                        orientation={orientation}
+                        isIPhoneLandscape={isIPhoneLandscape}
+                        appRenderKey={appRenderKey}
+                      />
+                    </div>
+                    
+                    {/* Right sidebar with Statistics and Shot Log vertically stacked */}
+                    {window.innerWidth > 1024 && (
+                      <div style={{
+                        flex: '1',
+                        minWidth: '300px',
+                        maxWidth: '400px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.5rem'
+                      }}>
+                        {/* Shooting Statistics Box */}
+                        <ShootingStatistics 
+                          shots={shots}
+                          windowDimensions={windowDimensions}
+                          sessionStarted={sessionStarted}
+                        />
+                        
+                        {/* Shot Log below Statistics */}
+                        <HistoryLog 
+                          shots={shots} 
+                          playerName={selectedPlayer?.name || 'Unknown Player'} 
+                          sessionStartTime={startTime}
+                          totalPausedTime={totalPausedTime}
+                          windowDimensions={windowDimensions}
+                          orientation={orientation}
+                          isIPhoneLandscape={isIPhoneLandscape}
+                          appRenderKey={appRenderKey}
+                        />
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <ZoneButtons 
                     shots={shots} 
                     setShots={setShots} 
                     currentPlayer={selectedPlayer?.name || 'Unknown Player'}
                     onShot={handleShot}
-                    onUndoZoneShot={handleUndoZoneShot}
+                    onUndoLastShot={handleUndoLastShot}
+                    lastUndoShotTime={lastUndoShotTime}
+                    setLastUndoShotTime={setLastUndoShotTime}
                     sessionStarted={sessionStarted}
                     sessionPaused={sessionPaused}
                     currentElapsedTime={elapsedTime}
+                    windowDimensions={windowDimensions}
+                    orientation={orientation}
+                    isIPhoneLandscape={isIPhoneLandscape}
+                    appRenderKey={appRenderKey}
+                    isReversed={isReversed}
+                    setIsReversed={setIsReversed}
                   />
                 )}
               </div>
 
-              {/* History Log - Sidebar on tablet, bottom on mobile */}
-              <div style={{ 
-                flex: window.innerWidth > 768 ? '1' : 'none',
-                minWidth: window.innerWidth > 768 ? '200px' : 'auto',
-                maxWidth: '100%',
-                height: 'auto',
-                boxSizing: 'border-box'
-              }}>
-                <HistoryLog 
-                  shots={shots} 
-                  playerName={selectedPlayer?.name || 'Unknown Player'} 
-                  sessionStartTime={startTime}
-                  totalPausedTime={totalPausedTime}
-                />
-              </div>
+              {/* History Log - Show separately on smaller screens OR in zone mode */}
+              {(window.innerWidth <= 1024 || !isMapMode) && (
+                <div style={{ 
+                  flex: window.innerWidth > 768 ? '1' : 'none',
+                  minWidth: window.innerWidth > 768 ? '200px' : 'auto',
+                  maxWidth: '100%',
+                  height: 'auto',
+                  boxSizing: 'border-box'
+                }}>
+                  <HistoryLog 
+                    shots={shots} 
+                    playerName={selectedPlayer?.name || 'Unknown Player'} 
+                    sessionStartTime={startTime}
+                    totalPausedTime={totalPausedTime}
+                    windowDimensions={windowDimensions}
+                    orientation={orientation}
+                    isIPhoneLandscape={isIPhoneLandscape}
+                    appRenderKey={appRenderKey}
+                  />
+                </div>
+              )}
             </div>
             </div>
         );
@@ -821,15 +1204,19 @@ function App() {
   };
 
   return (
-    <div className="flex flex-col bg-cavs-wine relative" style={{ 
-      width: '100%', 
-      height: '100vh',
-      maxWidth: '100vw', 
-      maxHeight: '100vh',
-      overflowX: 'hidden',
-      overflowY: 'hidden',
-      boxSizing: 'border-box'
-    }}>
+    <div 
+      key={appRenderKey} 
+      className="flex flex-col bg-cavs-wine relative" 
+      style={{ 
+        width: '100%', 
+        height: '100vh',
+        maxWidth: '100vw', 
+        maxHeight: '100vh',
+        overflowX: 'hidden',
+        overflowY: 'hidden',
+        boxSizing: 'border-box'
+      }}
+    >
       <AppBar position="static" sx={{ 
         backgroundColor: '#6F263D',
         width: '100%',
@@ -925,7 +1312,7 @@ function App() {
                 Save Results
               </button>
               <button
-                onClick={handleDiscardResults}
+                onClick={handleDiscardRequest}
                 style={{
                   padding: '0.75rem 1.5rem',
                   fontSize: '1rem',
@@ -953,6 +1340,73 @@ function App() {
                 }}
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Discard Confirmation Dialog */}
+      {showDiscardConfirmDialog && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 2000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '2rem',
+            borderRadius: '12px',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
+            textAlign: 'center',
+            maxWidth: '450px',
+            width: '90%'
+          }}>
+            <h2 style={{ color: '#dc3545', marginBottom: '1rem', fontSize: '1.5rem' }}>
+              Confirm Discard
+            </h2>
+            <p style={{ color: '#6F263D', marginBottom: '2rem', fontSize: '1.1rem', lineHeight: '1.4' }}>
+              Are you sure? This will cause you to lose all previous shooting data for this session.
+            </p>
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button
+                onClick={handleConfirmDiscard}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  fontSize: '1rem',
+                  fontWeight: 'bold',
+                  border: 'none',
+                  borderRadius: '8px',
+                  backgroundColor: '#dc3545',
+                  color: 'white',
+                  cursor: 'pointer',
+                  minWidth: '140px'
+                }}
+              >
+                Yes, Discard
+              </button>
+              <button
+                onClick={handleCancelDiscard}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  fontSize: '1rem',
+                  fontWeight: 'bold',
+                  border: '2px solid #6F263D',
+                  borderRadius: '8px',
+                  backgroundColor: 'transparent',
+                  color: '#6F263D',
+                  cursor: 'pointer',
+                  minWidth: '140px'
+                }}
+              >
+                No, Go Back
               </button>
             </div>
           </div>
@@ -1189,7 +1643,7 @@ function App() {
               textAlign: 'center',
               fontSize: window.innerWidth <= 480 ? '1.2rem' : '1.5rem'
             }}>
-              🏀 Session Review
+              Session Review
             </h2>
             
             <div style={{ marginBottom: '1.5rem' }}>
@@ -1290,7 +1744,7 @@ function App() {
                     e.target.style.backgroundColor = '#28a745';
                   }}
                 >
-                  📄 Download
+                  Download
                 </button>
               )}
               <button
@@ -1345,7 +1799,7 @@ function App() {
             maxWidth: '400px',
             width: '90%'
           }}>
-            <h2 style={{ color: '#6F263D', marginBottom: '1rem' }}>✅ Results Saved!</h2>
+            <h2 style={{ color: '#6F263D', marginBottom: '1rem' }}>Results Saved!</h2>
             <p style={{ color: '#6F263D', marginBottom: '2rem', fontSize: '1.1rem' }}>
               Shooting test results for {selectedPlayer?.name || 'Unknown Player'} have been saved successfully.
               <br /><br />

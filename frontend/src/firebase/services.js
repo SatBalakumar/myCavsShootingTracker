@@ -3,6 +3,7 @@ import {
   getDocs, 
   addDoc, 
   doc, 
+  getDoc,
   updateDoc, 
   deleteDoc,
   query,
@@ -10,6 +11,7 @@ import {
   where
 } from 'firebase/firestore';
 import { db } from './config';
+import { getEasternTimeISO } from '../utils/timezone';
 
 // Collection references
 const PLAYERS_COLLECTION = 'playerInformation';
@@ -23,13 +25,27 @@ export const playersService = {
   async getAllPlayers() {
     try {
       const playersRef = collection(db, PLAYERS_COLLECTION);
-      const q = query(playersRef, orderBy('name'));
-      const querySnapshot = await getDocs(q);
       
-      return querySnapshot.docs.map(doc => ({
+      // Use simple query to avoid index issues, then sort in JavaScript
+      const querySnapshot = await getDocs(playersRef);
+      
+      const players = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
+      
+      // Sort by jersey number, then by name for players without jersey numbers
+      return players.sort((a, b) => {
+        // If both players have jersey numbers, sort by jersey number
+        if (a.jerseyNumber && b.jerseyNumber) {
+          return a.jerseyNumber - b.jerseyNumber;
+        }
+        // If only one has a jersey number, put that one first
+        if (a.jerseyNumber && !b.jerseyNumber) return -1;
+        if (!a.jerseyNumber && b.jerseyNumber) return 1;
+        // If neither has a jersey number, sort alphabetically by name
+        return a.name.localeCompare(b.name);
+      });
     } catch (error) {
       console.error('Error fetching players:', error);
       throw error;
@@ -50,9 +66,7 @@ export const playersService = {
         jerseyNumber: playerData.jerseyNumber || null,
         position: playerData.position || '',
         isActive: playerData.isActive !== undefined ? playerData.isActive : true,
-        shootingLogs: [],                // Initialize empty array
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        shootingLogs: []                // Array to store logIDs of saved shooting logs
       });
       
       return { id: docRef.id, playerID, ...playerData };
@@ -62,14 +76,31 @@ export const playersService = {
     }
   },
 
+  // Get player by document ID
+  async getPlayerById(playerId) {
+    try {
+      const playerRef = doc(db, PLAYERS_COLLECTION, playerId);
+      const playerDoc = await getDoc(playerRef);
+      
+      if (!playerDoc.exists()) {
+        throw new Error('Player not found');
+      }
+      
+      return {
+        id: playerDoc.id,
+        ...playerDoc.data()
+      };
+    } catch (error) {
+      console.error('Error fetching player by ID:', error);
+      throw error;
+    }
+  },
+
   // Update player
   async updatePlayer(playerId, updates) {
     try {
       const playerRef = doc(db, PLAYERS_COLLECTION, playerId);
-      await updateDoc(playerRef, {
-        ...updates,
-        updatedAt: new Date().toISOString()
-      });
+      await updateDoc(playerRef, updates);
       
       return { id: playerId, ...updates };
     } catch (error) {
@@ -103,8 +134,18 @@ export const playersService = {
         ...doc.data()
       }));
       
-      // Sort in JavaScript instead of Firestore to avoid compound index issues
-      return players.sort((a, b) => a.name.localeCompare(b.name));
+      // Sort by jersey number, then by name for players without jersey numbers
+      return players.sort((a, b) => {
+        // If both players have jersey numbers, sort by jersey number
+        if (a.jerseyNumber && b.jerseyNumber) {
+          return a.jerseyNumber - b.jerseyNumber;
+        }
+        // If only one has a jersey number, put that one first
+        if (a.jerseyNumber && !b.jerseyNumber) return -1;
+        if (!a.jerseyNumber && b.jerseyNumber) return 1;
+        // If neither has a jersey number, sort alphabetically by name
+        return a.name.localeCompare(b.name);
+      });
     } catch (error) {
       console.error('Error fetching active players:', error);
       console.error('Error code:', error.code);
@@ -121,9 +162,19 @@ export const playersService = {
           ...doc.data()
         }));
         
-        // Filter active players in JavaScript
+        // Filter active players in JavaScript and sort by jersey number
         const activePlayers = allPlayers.filter(player => player.isActive !== false);
-        return activePlayers.sort((a, b) => a.name.localeCompare(b.name));
+        return activePlayers.sort((a, b) => {
+          // If both players have jersey numbers, sort by jersey number
+          if (a.jerseyNumber && b.jerseyNumber) {
+            return a.jerseyNumber - b.jerseyNumber;
+          }
+          // If only one has a jersey number, put that one first
+          if (a.jerseyNumber && !b.jerseyNumber) return -1;
+          if (!a.jerseyNumber && b.jerseyNumber) return 1;
+          // If neither has a jersey number, sort alphabetically by name
+          return a.name.localeCompare(b.name);
+        });
       } catch (fallbackError) {
         console.error('Fallback query also failed:', fallbackError);
         throw error; // Throw the original error
@@ -163,7 +214,7 @@ export const shootingLogsService = {
       const docRef = await addDoc(logsRef, {
         logID: logID,
         playerID: logData.playerID,
-        sessionDate: logData.sessionDate || new Date().toISOString(),
+        sessionDate: logData.sessionDate || getEasternTimeISO(),
         sessionDuration: logData.sessionDuration || 0,
         totalShots: 0,
         totalMade: 0,
@@ -177,8 +228,32 @@ export const shootingLogsService = {
           right_wing: { made: 0, attempts: 0 },
           right_corner: { made: 0, attempts: 0 }
         },
-        createdAt: new Date().toISOString()
+        createdAt: getEasternTimeISO()
       });
+      
+      // Update the player's shootingLogs array with the new logID
+      try {
+        const playersRef = collection(db, PLAYERS_COLLECTION);
+        const playerQuery = query(playersRef, where('playerID', '==', logData.playerID));
+        const playerSnapshot = await getDocs(playerQuery);
+        
+        if (!playerSnapshot.empty) {
+          const playerDoc = playerSnapshot.docs[0];
+          const currentLogs = playerDoc.data().shootingLogs || [];
+          
+          // Add the new logID to the player's shootingLogs array
+          await updateDoc(doc(db, PLAYERS_COLLECTION, playerDoc.id), {
+            shootingLogs: [...currentLogs, logID]
+          });
+          
+          console.log(`Updated player ${logData.playerID} with new shooting log: ${logID}`);
+        } else {
+          console.warn(`Player with ID ${logData.playerID} not found when trying to update shootingLogs`);
+        }
+      } catch (updateError) {
+        console.error('Error updating player shootingLogs:', updateError);
+        // Don't throw here - the log was created successfully, just the player update failed
+      }
       
       return { id: docRef.id, logID, ...logData };
     } catch (error) {
@@ -220,7 +295,7 @@ export const shootingLogsService = {
       const docRef = doc(db, SHOOTING_LOGS_COLLECTION, querySnapshot.docs[0].id);
       await updateDoc(docRef, {
         ...stats,
-        updatedAt: new Date().toISOString()
+        updatedAt: getEasternTimeISO()
       });
       
       return { logID, ...stats };
@@ -267,6 +342,61 @@ export const shootingLogsService = {
       console.error('Error fetching player logs:', error);
       throw error;
     }
+  },
+
+  // Get shooting logs by player ID
+  async getShootingLogsByPlayer(playerID) {
+    try {
+      console.log('Services: Searching for shooting logs with playerID:', playerID);
+      const logsRef = collection(db, SHOOTING_LOGS_COLLECTION);
+      
+      // Search using the correct field name: playerID (not playerId)
+      let q = query(logsRef, where('playerID', '==', playerID));
+      let querySnapshot = await getDocs(q);
+      
+      console.log('Services: Found', querySnapshot.size, 'logs for playerID:', playerID);
+      
+      if (querySnapshot.empty) {
+        console.log(`Services: No shooting logs found for player: ${playerID}`);
+        return [];
+      }
+      
+      const logs = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      console.log(`Services: Returning ${logs.length} logs for player: ${playerID}`);
+      
+      // Sort by session date (most recent first)
+      return logs.sort((a, b) => new Date(b.sessionDate || 0) - new Date(a.sessionDate || 0));
+    } catch (error) {
+      console.error('Error fetching shooting logs by player:', error);
+      throw error;
+    }
+  },
+
+  // Delete shooting log
+  async deleteShootingLog(logID) {
+    try {
+      const logsRef = collection(db, SHOOTING_LOGS_COLLECTION);
+      const q = query(logsRef, where('logID', '==', logID));
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) {
+        console.log('Shooting log not found for deletion');
+        return;
+      }
+      
+      // Delete the document
+      const docRef = doc(db, SHOOTING_LOGS_COLLECTION, querySnapshot.docs[0].id);
+      await deleteDoc(docRef);
+      
+      console.log('Shooting log deleted successfully');
+    } catch (error) {
+      console.error('Error deleting shooting log:', error);
+      throw error;
+    }
   }
 };
 
@@ -287,7 +417,7 @@ export const shotsService = {
         shotResult: shotData.shotResult,    // "made" or "missed"
         shotZone: shotData.shotZone,
         timeTaken: shotData.timeTaken || 0,
-        timestamp: new Date().toISOString(),
+        timestamp: getEasternTimeISO(),
         sequenceNumber: shotData.sequenceNumber || 1
       });
       
@@ -377,7 +507,7 @@ export const shootingSessionsService = {
         startTime: sessionData.startTime,
         endTime: sessionData.endTime,
         zoneStats: sessionData.zoneStats,
-        createdAt: new Date().toISOString()
+        createdAt: getEasternTimeISO()
       });
       
       return { id: docRef.id, ...sessionData };
@@ -423,6 +553,30 @@ export const shootingSessionsService = {
       console.error('Error fetching all sessions:', error);
       throw error;
     }
+  },
+
+  // Get shots by log ID
+  async getShotsByLogID(logID) {
+    try {
+      const shotsRef = collection(db, SHOTS_COLLECTION);
+      const q = query(shotsRef, where('logID', '==', logID));
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) {
+        return [];
+      }
+      
+      const shots = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      // Sort by timestamp
+      return shots.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    } catch (error) {
+      console.error('Error fetching shots by log ID:', error);
+      throw error;
+    }
   }
 };
 
@@ -442,7 +596,7 @@ export const sessionEventsService = {
         playerID: eventData.playerID,
         eventType: eventData.eventType,      // 'session_start', 'session_pause', 'session_resume', 'session_end', 'shot_made', 'shot_missed', 'shot_undo'
         eventData: eventData.eventData || {}, // Additional event-specific data
-        timestamp: new Date().toISOString(),
+        timestamp: getEasternTimeISO(),
         sessionElapsedTime: eventData.sessionElapsedTime || 0, // Time since session started (in seconds)
         sequenceNumber: eventData.sequenceNumber || 1
       });
@@ -558,43 +712,83 @@ export const sessionEventsService = {
       console.error('Error deleting event:', error);
       throw error;
     }
+  },
+
+  // Get events by log ID
+  async getEventsByLogID(logID) {
+    try {
+      const eventsRef = collection(db, SESSION_EVENTS_COLLECTION);
+      const q = query(eventsRef, where('logID', '==', logID));
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) {
+        return [];
+      }
+      
+      const events = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      // Sort by sequence number
+      return events.sort((a, b) => (a.sequenceNumber || 0) - (b.sequenceNumber || 0));
+    } catch (error) {
+      console.error('Error fetching events by log ID:', error);
+      throw error;
+    }
   }
 };
 
-// Utility function to initialize some sample players (for testing)
+// Utility function to initialize Cleveland Cavaliers roster
 export const initializeSampleData = async () => {
   try {
     const existingPlayers = await playersService.getAllPlayers();
     
     if (existingPlayers.length === 0) {
-      const samplePlayers = [
-        { name: 'Donovan Mitchell', jerseyNumber: 45, position: 'SG', isActive: true },
-        { name: 'Darius Garland', jerseyNumber: 10, position: 'PG', isActive: true },
+      // Cleveland Cavaliers players
+      const cavsRoster = [
         { name: 'Jarrett Allen', jerseyNumber: 31, position: 'C', isActive: true },
-        { name: 'Evan Mobley', jerseyNumber: 4, position: 'PF', isActive: true },
-        { name: 'Caris LeVert', jerseyNumber: 3, position: 'SG', isActive: true },
-        { name: 'Isaac Okoro', jerseyNumber: 35, position: 'SF', isActive: true },
-        { name: 'Max Strus', jerseyNumber: 1, position: 'SF', isActive: true },
-        { name: 'Georges Niang', jerseyNumber: 20, position: 'PF', isActive: true },
-        { name: 'Craig Porter Jr.', jerseyNumber: 9, position: 'PG', isActive: true },
-        { name: 'Tristan Thompson', jerseyNumber: 13, position: 'C', isActive: true },
+        { name: 'Lonzo Ball', jerseyNumber: 2, position: 'PG', isActive: true },
+        { name: 'Emoni Bates', jerseyNumber: 21, position: 'SF', isActive: true },
+        { name: 'Darius Garland', jerseyNumber: 10, position: 'PG', isActive: true },
+        { name: 'Javonte Green', jerseyNumber: 8, position: 'SG', isActive: true },
+        { name: 'De\'Andre Hunter', jerseyNumber: 12, position: 'SF', isActive: true },
         { name: 'Sam Merrill', jerseyNumber: 5, position: 'SG', isActive: true },
-        { name: 'Dean Wade', jerseyNumber: 32, position: 'PF', isActive: true },
-        { name: 'Damian Jones', jerseyNumber: 21, position: 'C', isActive: true },
-        { name: 'Luke Travers', jerseyNumber: 12, position: 'SF', isActive: true }
+        { name: 'Donovan Mitchell', jerseyNumber: 45, position: 'SG', isActive: true },
+        { name: 'Evan Mobley', jerseyNumber: 4, position: 'PF', isActive: true },
+        { name: 'Larry Nance Jr.', jerseyNumber: 22, position: 'PF', isActive: true },
+        { name: 'Saliou Niang', jerseyNumber: 77, position: 'PG', isActive: true },
+        { name: 'Chuma Okeke', jerseyNumber: 18, position: 'PF', isActive: true },
+        { name: 'Craig Porter Jr.', jerseyNumber: 9, position: 'SG', isActive: true },
+        { name: 'Tyrese Proctor', jerseyNumber: 24, position: 'G', isActive: true },
+        { name: 'Max Strus', jerseyNumber: 1, position: 'SG', isActive: true },
+        { name: 'Tristan Thompson', jerseyNumber: 13, position: 'C', isActive: true },
+        { name: 'Nae\'Qwan Tomlin', jerseyNumber: 30, position: 'SF', isActive: true },
+        { name: 'Luke Travers', jerseyNumber: 33, position: 'PG', isActive: true },
+        { name: 'Jaylon Tyson', jerseyNumber: 20, position: 'SF', isActive: true }
       ];
 
-      for (const player of samplePlayers) {
-        await playersService.addPlayer(player);
+      console.log('Adding Cleveland Cavaliers roster to database...');
+      let successCount = 0;
+      
+      for (const player of cavsRoster) {
+        try {
+          await playersService.addPlayer(player);
+          successCount++;
+          console.log(`Added ${player.name} (#${player.jerseyNumber})`);
+        } catch (error) {
+          console.error(`Failed to add ${player.name}:`, error.message);
+        }
       }
       
-      console.log('Sample Cavaliers players added to Firebase!');
-      return true;
+      console.log(`Successfully added ${successCount}/${cavsRoster.length} players to Firebase!`);
+      return { success: true, playersAdded: successCount, totalPlayers: cavsRoster.length };
     }
     
-    return false;
+    console.log(`Database already contains ${existingPlayers.length} players. Skipping initialization.`);
+    return { success: false, message: 'Players already exist', existingCount: existingPlayers.length };
   } catch (error) {
-    console.error('Error initializing sample data:', error);
-    throw error;
+    console.error('Error initializing Cleveland Cavaliers roster:', error);
+    return { success: false, error: error.message };
   }
 };

@@ -1,8 +1,23 @@
 import React, { useState, useRef } from 'react';
 import './HistoryLog.css';
 
-const HistoryLog = ({ shots, playerName = "Guest", sessionStartTime, totalPausedTime = 0 }) => {
-  const [isCollapsed, setIsCollapsed] = useState(true);
+const HistoryLog = ({ 
+  shots, 
+  playerName = "Guest", 
+  sessionStartTime, 
+  totalPausedTime = 0,
+  windowDimensions,
+  orientation,
+  isIPhoneLandscape,
+  appRenderKey
+}) => {
+  // Use iPhone detection from props if available, fallback to local detection
+  const effectiveIsIPhone = isIPhoneLandscape !== undefined ? 
+    /iPhone/i.test(navigator.userAgent) : 
+    /iPhone/i.test(navigator.userAgent);
+  
+  // On iPhone, default to expanded so users can access the log despite Safari URL bar issues
+  const [isCollapsed, setIsCollapsed] = useState(!effectiveIsIPhone); // Expanded by default on iPhone
   const scrollRef = useRef(null);
 
   const formatLocation = (location) => {
@@ -40,18 +55,6 @@ const HistoryLog = ({ shots, playerName = "Guest", sessionStartTime, totalPaused
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const scrollUp = () => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollBy({ top: -100, behavior: 'smooth' });
-    }
-  };
-
-  const scrollDown = () => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollBy({ top: 100, behavior: 'smooth' });
-    }
-  };
-
   return (
     <div className={`history-log ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="log-header" onClick={() => setIsCollapsed(!isCollapsed)}>
@@ -80,11 +83,6 @@ const HistoryLog = ({ shots, playerName = "Guest", sessionStartTime, totalPaused
         <>
           <div className="separator-line"></div>
           <div className="log-container">
-            {shots.length > 5 && (
-              <button className="scroll-button scroll-up" onClick={scrollUp}>
-                ▲
-              </button>
-            )}
             <div className="log-scroll" ref={scrollRef}>
               {shots.slice().reverse().map((shot, index) => (
                 <div key={shots.length - index - 1} className="log-entry">
@@ -93,11 +91,6 @@ const HistoryLog = ({ shots, playerName = "Guest", sessionStartTime, totalPaused
                 </div>
               ))}
             </div>
-            {shots.length > 5 && (
-              <button className="scroll-button scroll-down" onClick={scrollDown}>
-                ▼
-              </button>
-            )}
           </div>
         </>
       )}
