@@ -1,4 +1,7 @@
 import { playersService, shootingLogsService, shotsService, sessionEventsService } from './services';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from './config';
+import { getEasternTimeISO } from '../utils/timezone';
 
 // High-level service to manage shooting sessions with proper relationships and event tracking
 export const shootingSessionManager = {
@@ -22,26 +25,39 @@ export const shootingSessionManager = {
       // Reset sequence counter for new session
       this.resetSequence();
       
-      // Create a new shooting log
+      // Get the actual playerID from the player document (in case we're passed a document ID)
+      let actualPlayerID = playerID;
+      
+      // Check if this looks like a Firebase document ID (random string format)
+      // Document IDs are typically 20+ characters of random alphanumeric
+      const isDocumentId = playerID.length > 15 && /^[a-zA-Z0-9]+$/.test(playerID) && !playerID.includes('_');
+      
+      if (isDocumentId) {
+        // This might be a document ID, so let's get the actual playerID
+        const player = await playersService.getPlayerById(playerID);
+        actualPlayerID = player.playerID || playerID;
+      }
+      
+      // Create a new shooting log with the actual playerID
       const shootingLog = await shootingLogsService.createShootingLog({
-        playerID: playerID,
-        sessionDate: new Date().toISOString()
+        playerID: actualPlayerID,
+        sessionDate: getEasternTimeISO()
       });
       
       const sessionData = {
         logID: shootingLog.logID,
-        playerID: playerID,
+        playerID: actualPlayerID,
         sessionStartTime: new Date().getTime()
       };
       
       // Log session start event
       await sessionEventsService.addEvent({
         logID: shootingLog.logID,
-        playerID: playerID,
+        playerID: actualPlayerID,
         eventType: 'session_start',
         eventData: {
-          playerID: playerID,
-          sessionDate: new Date().toISOString()
+          playerID: actualPlayerID,
+          sessionDate: getEasternTimeISO()
         },
         sessionElapsedTime: 0,
         sequenceNumber: this.getNextSequence()
@@ -128,7 +144,7 @@ export const shootingSessionManager = {
         playerID: playerID,
         eventType: 'session_pause',
         eventData: {
-          pausedAt: new Date().toISOString()
+          pausedAt: getEasternTimeISO()
         },
         sessionElapsedTime: elapsedTime,
         sequenceNumber: this.getNextSequence()
@@ -153,7 +169,7 @@ export const shootingSessionManager = {
         playerID: playerID,
         eventType: 'session_resume',
         eventData: {
-          resumedAt: new Date().toISOString(),
+          resumedAt: getEasternTimeISO(),
           totalPausedTime: totalPausedTime
         },
         sessionElapsedTime: elapsedTime,
@@ -180,7 +196,7 @@ export const shootingSessionManager = {
         playerID: playerID,
         eventType: 'session_end',
         eventData: {
-          endedAt: new Date().toISOString(),
+          endedAt: getEasternTimeISO(),
           totalSessionTime: totalSessionTime,
           finalStats: finalStats
         },
@@ -345,5 +361,186 @@ export const shootingSessionManager = {
       console.error('Error getting events by type:', error);
       throw error;
     }
+  },
+
+  // Get all players for download interface
+  async getAllPlayers() {
+    try {
+      return await playersService.getAllPlayers();
+    } catch (error) {
+      console.error('Error getting all players:', error);
+      throw error;
+    }
+  },
+
+  // Get player sessions in date range
+  async getPlayerSessions({ playerId, startDate, endDate }) {
+    try {
+      console.log('SessionManager: Getting sessions for playerId:', playerId);
+      
+      // Get all shooting logs for the player - use the correct field name
+      const allLogs = await shootingLogsService.getShootingLogsByPlayer(playerId);
+      
+      console.log('SessionManager: Found logs:', allLogs.length);
+      
+      if (!allLogs || allLogs.length === 0) {
+        console.log('SessionManager: No logs found for this player');
+        return [];
+      }
+
+      // Filter by date range if provided
+      let filteredLogs = allLogs;
+      if (startDate || endDate) {
+        filteredLogs = allLogs.filter(log => {
+          const sessionDate = new Date(log.sessionDate);
+          const start = startDate ? new Date(startDate) : null;
+          const end = endDate ? new Date(endDate) : null;
+          
+          if (start && end) {
+            return sessionDate >= start && sessionDate <= end;
+          } else if (start) {
+            return sessionDate >= start;
+          } else if (end) {
+            return sessionDate <= end;
+          }
+          return true;
+        });
+      }
+
+      // Enrich with session statistics
+      const enrichedSessions = await Promise.all(
+        filteredLogs.map(async (log) => {
+          try {
+            console.log(`Processing session ${log.logID} for enrichment`);
+            
+            const shots = await shotsService.getLogShots(log.logID);
+            const sessionEvents = await sessionEventsService.getEventsByLogID(log.logID);
+            
+            console.log(`Session ${log.logID}: Found ${shots ? shots.length : 0} shots, ${sessionEvents ? sessionEvents.length : 0} events`);
+            
+            const startEvent = sessionEvents.find(event => event.eventType === 'session_start');
+            const endEvent = sessionEvents.find(event => event.eventType === 'session_end');
+            
+            // Calculate duration using maximum timer value from shots
+            let duration = 'N/A';
+            if (shots && shots.length > 0) {
+              // Find the maximum timeTaken value which represents the session duration
+              const maxTimerValue = Math.max(...shots.map(shot => shot.timeTaken || 0));
+              console.log(`Duration calculation - maxTimerValue: ${maxTimerValue}`);
+              
+              // Check if timeTaken appears to be in milliseconds (> 1000 suggests milliseconds)
+              // For a reasonable shooting session, seconds should be < 3600 (1 hour)
+              if (maxTimerValue > 3600) {
+                console.log(`timeTaken appears to be in milliseconds`);
+                duration = this.formatDuration(maxTimerValue);
+              } else {
+                console.log(`timeTaken appears to be in seconds`);
+                duration = this.formatDuration(maxTimerValue * 1000);
+              }
+              console.log(`Duration calculation - formatted duration: ${duration}`);
+            } else if (startEvent && endEvent) {
+              // Fallback to session events if no shots available
+              const startTime = new Date(startEvent.timestamp).getTime();
+              const endTime = new Date(endEvent.timestamp).getTime();
+              const durationMs = endTime - startTime;
+              console.log(`Duration calculation - event-based duration: ${durationMs}ms`);
+              duration = this.formatDuration(durationMs);
+              console.log(`Duration calculation - formatted duration: ${duration}`);
+            } else if (log.sessionDuration) {
+              // sessionDuration is stored in seconds, formatDuration expects milliseconds
+              console.log(`Duration calculation - log.sessionDuration: ${log.sessionDuration} seconds`);
+              duration = this.formatDuration(log.sessionDuration * 1000);
+              console.log(`Duration calculation - formatted duration: ${duration}`);
+            }
+            
+            const totalShots = shots ? shots.length : 0;
+            const madeShots = shots ? shots.filter(shot => shot.shotResult === 'made').length : 0;
+            const accuracy = totalShots > 0 ? ((madeShots / totalShots) * 100).toFixed(1) + '%' : '0%';
+            
+            console.log(`Session ${log.logID}: Duration=${duration}, Shots=${totalShots}, Made=${madeShots}, Accuracy=${accuracy}`);
+            
+            return {
+              sessionId: log.logID,
+              playerId: log.playerID,
+              startTime: log.sessionDate,
+              duration: duration,
+              totalShots: totalShots,
+              madeShots: madeShots,
+              accuracy: accuracy
+            };
+          } catch (error) {
+            console.error(`Error enriching session ${log.logID}:`, error);
+            return {
+              sessionId: log.logID,
+              playerId: log.playerID,
+              startTime: log.sessionDate,
+              duration: 'N/A',
+              totalShots: 0,
+              madeShots: 0,
+              accuracy: '0%'
+            };
+          }
+        })
+      );
+
+      return enrichedSessions.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+    } catch (error) {
+      console.error('Error getting player sessions:', error);
+      throw error;
+    }
+  },
+
+  // Get shots for a specific session
+  async getSessionShots(sessionId) {
+    try {
+      return await shotsService.getLogShots(sessionId);
+    } catch (error) {
+      console.error('Error getting session shots:', error);
+      throw error;
+    }
+  },
+
+  // Discard a session (delete all related data)
+  async discardSession(sessionData) {
+    try {
+      if (!sessionData || !sessionData.logID) {
+        console.log('No session to discard');
+        return;
+      }
+
+      const { logID } = sessionData;
+      console.log('Discarding session with logID:', logID);
+
+      // Delete all shots for this session
+      const shots = await shotsService.getLogShots(logID);
+      for (const shot of shots) {
+        await shotsService.deleteShot(shot.shotID);
+      }
+
+      // Delete all session events for this session
+      const events = await sessionEventsService.getEventsByLogID(logID);
+      for (const event of events) {
+        await sessionEventsService.deleteEvent(event.eventID);
+      }
+
+      // Delete the shooting log itself
+      await shootingLogsService.deleteShootingLog(logID);
+
+      console.log('Session discarded successfully');
+    } catch (error) {
+      console.error('Error discarding session:', error);
+      throw error;
+    }
+  },
+
+  // Helper method to format duration
+  formatDuration(milliseconds) {
+    if (!milliseconds) return 'N/A';
+    
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   }
 };

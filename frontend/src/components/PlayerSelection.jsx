@@ -183,7 +183,7 @@ const PlayerSelection = ({ onPlayerSelected, onBackToHome }) => {
             textAlign: 'center'
           }}>
             <div style={{ marginBottom: isLandscape ? '10px' : '20px', fontSize: isLandscape ? '1rem' : '1.1rem', color: '#FFB81C' }}>
-              🏀 Loading players...
+              Loading players...
             </div>
             
             {/* Progress Bar Container */}

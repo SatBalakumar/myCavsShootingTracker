@@ -18,7 +18,7 @@
 
 ## Step 3: Get Firebase Configuration
 
-1. In your Firebase project console, click the gear icon ⚙️ (Project settings)
+1. In your Firebase project console, click the gear icon (Project settings)
 2. Scroll down to "Your apps" section
 3. Click the web icon `</>`
 4. Register your app with a nickname like "Cavs Shooting Tracker Web"

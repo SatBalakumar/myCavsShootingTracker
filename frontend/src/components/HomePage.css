@@ -74,3 +74,42 @@
 .home-button:active {
   transform: translateY(0px);
 }
+
+/* Mobile Responsive Styles */
+@media (max-width: 1024px) {
+  .download-button {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .home-content {
+    padding: 1.5rem;
+    gap: 2rem;
+  }
+
+  .home-title {
+    font-size: 2rem;
+  }
+
+  .home-button {
+    padding: 0.8rem 1.5rem;
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .home-content {
+    padding: 1rem;
+    margin: 1rem;
+  }
+
+  .home-title {
+    font-size: 1.8rem;
+  }
+
+  .home-button {
+    padding: 0.7rem 1rem;
+    font-size: 0.9rem;
+  }
+}

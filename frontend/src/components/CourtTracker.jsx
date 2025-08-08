@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './CourtTracker.css';
+import { getEasternTimeISO } from '../utils/timezone';
 
 // Helper function to format numbers with leading zeros (always 2 digits)
 const formatStatNumber = (num) => {
@@ -11,7 +12,7 @@ const COURT_ZONES = [
     id: 'left_corner', 
     label: 'Left Corner',
     // Left corner: actual corner area following three-point line
-    polygon: "14.7,0.1 18.5,0.1 18.6,21.7 14.6,21.7",
+    polygon: "17.8,0.3 17.9,21.9 21.5,21.8 21.5,0.2",
     buttonPosition: { top: '15%', left: '11%' },
     bounds: { top: -2.5, left: 8.3, bottom: 21.9, right: 13.4 }
   },
@@ -19,7 +20,7 @@ const COURT_ZONES = [
     id: 'left_wing', 
     label: 'Left Wing',
     // Left wing: between corner and paint
-    polygon: "19,21.9 20.3,25 21.9,28.7 24.7,32.2 27.2,35.1 29.5,37.3 32.3,39.4 35.2,41 37.7,42.2 39,42.9 39,59.8 14.8,59.8 14.7,21.9",
+    polygon: "18,22 18.1,59.4 39.7,59.6 39.8,42.9 37.6,42 35.4,41 33.1,39.1 30.7,37.3 28.7,34.6 26.6,32.4 25.1,29.8 23.8,27.3 22.6,24.6 21.6,22.1",
     buttonPosition: { top: '40%', left: '20%' },
     bounds: { top: 21.9, left: 8.3, bottom: 58, right: 32.3 }
   },
@@ -27,7 +28,7 @@ const COURT_ZONES = [
     id: 'top_key', 
     label: 'Top of Key',
     // Top of key: paint area and free throw extended
-    polygon: "62,42.5 62,59.9 38.3,59.9 38.2,42.8 40.9,43.8 43.9,44.6 47.2,45 51.5,45.2 55.6,44.7 59,43.8",
+    polygon: "40.1,42.9 40.1,59.9 60.6,59.9 60.6,42.7 58.8,43.6 56.3,44.4 53.8,45.1 51.1,45.3 48.3,45.5 45.5,44.9 42.6,44.2",
     buttonPosition: { top: '75%', left: '50%' },
     bounds: { top: 41.7, left: 32.3, bottom: 58, right: 68.4 }
   },
@@ -35,7 +36,7 @@ const COURT_ZONES = [
     id: 'right_wing', 
     label: 'Right Wing',
     // Right wing: mirror of left wing - aligned boundary with top_key
-    polygon: "81.2,22.1 79.5,25.6 78.3,28.8 76,31.7 73.2,34.6 70.6,37.7 67.3,39.7 64.7,41.1 62.3,42.3 61.2,42.8 61.5,59.7 85.2,59.7 85.6,22",
+    polygon: "82.2,21.7 82,59.7 60.8,59.6 60.8,42.8 63.1,41.8 65.7,40.1 68.2,38.6 70,36.5 72.3,33.9 74.2,31.5 75.8,28.8 77.1,26.3 78,23.9 78.8,21.9",
     buttonPosition: { top: '40%', left: '80%' },
     bounds: { top: 21.9, left: 68.4, bottom: 58, right: 91.7 }
   },
@@ -43,15 +44,86 @@ const COURT_ZONES = [
     id: 'right_corner', 
     label: 'Right Corner',
     // Right corner: mirror of left corner
-    polygon: "81.2,0.2 81.2,21.6 85.3,21.9 85.1,0.2",
+    polygon: "78.8,0.2 82.1,0.2 82.1,21.2 78.8,21.3",
     buttonPosition: { top: '15%', left: '89%' },
     bounds: { top: -2.5, left: 86.6, bottom: 21.9, right: 91.9 }
   }
 ];
 
-const CourtTracker = ({ shots, setShots, currentPlayer, onShot, onUndoZoneShot, sessionStarted, sessionPaused }) => {
-  // Mobile phone detection (excludes tablets)
-  const isMobilePhone = /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) && !/iPad|tablet/i.test(navigator.userAgent) && window.innerWidth <= 480;
+const CourtTracker = (props) => {
+  // Add safety checks for props
+  if (!props) {
+    console.error('CourtTracker: No props provided');
+    return <div>Loading Court...</div>;
+  }
+
+  const { 
+    shots, 
+    setShots, 
+    sessionStarted, 
+    sessionPaused, 
+    currentPlayer, 
+    currentElapsedTime, 
+    onShot,
+    onUndoLastShot,
+    lastUndoShotTime,
+    setLastUndoShotTime,
+    windowDimensions,
+    orientation,
+    isIPhoneLandscape,
+    appRenderKey
+  } = props;
+
+  // Additional safety checks
+  if (!shots || !setShots || typeof setShots !== 'function') {
+    console.error('CourtTracker: Missing required props (shots, setShots)');
+    return <div>Loading Court...</div>;
+  }
+
+  // Calculate time taken for current shot
+  const calculateShotTime = (currentElapsedTime) => {
+    try {
+      if (lastUndoShotTime !== null && lastUndoShotTime !== undefined) {
+        // Use the time from the undone shot
+        const undoTime = lastUndoShotTime;
+        if (typeof setLastUndoShotTime === 'function') {
+          setLastUndoShotTime(null); // Clear after using
+        }
+        return undoTime;
+      } else {
+        // Calculate time since last shot (or session start)
+        const previousShotTime = shots && shots.length > 0 ? shots[shots.length - 1].timerValue : 0;
+        return (currentElapsedTime || 0) - (previousShotTime || 0);
+      }
+    } catch (error) {
+      console.error('Error calculating shot time:', error);
+      return 0; // Fallback value
+    }
+  };
+  // Use orientation data from App component if available, fallback to local detection
+  const effectiveWindowDimensions = windowDimensions || {
+    width: window.innerWidth,
+    height: window.innerHeight
+  };
+  
+  // Enhanced mobile and tablet detection - disable court mode on all mobile devices and tablets
+  const isMobileOrTablet = useCallback(() => {
+    return (
+      // User agent detection (catches most devices)
+      /Android|webOS|iPhone|iPod|iPad|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet/i.test(navigator.userAgent) ||
+      // Screen width detection (catches smaller screens and some tablets)
+      effectiveWindowDimensions.width <= 768 ||
+      // Touch capability detection (fallback for devices not caught above)
+      ('ontouchstart' in window) ||
+      // Specific iPad detection (more comprehensive)
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ||
+      // Additional viewport-based detection for tablets
+      (effectiveWindowDimensions.width <= 1200 && effectiveWindowDimensions.height <= 900)
+    );
+  }, [effectiveWindowDimensions]);
+  
+  // Determine if court interactions should be disabled (only allow on desktop)
+  const shouldDisableCourtInteractions = isMobileOrTablet();
   
   // Zone Editor State - Only allow on desktop
   const [isEditorMode, setIsEditorMode] = useState(false);
@@ -61,8 +133,8 @@ const CourtTracker = ({ shots, setShots, currentPlayer, onShot, onUndoZoneShot, 
 
   // Handle clicks on court for point selection
   const handleCourtClick = (event) => {
-    // Completely disable editor functionality on mobile phones
-    if (isMobilePhone || !isEditorMode) return;
+    // Completely disable editor functionality on mobile phones and tablet landscape
+    if (shouldDisableCourtInteractions || !isEditorMode) return;
     
     const rect = event.currentTarget.getBoundingClientRect();
     const x = ((event.clientX - rect.left) / rect.width) * 100;
@@ -122,8 +194,10 @@ const CourtTracker = ({ shots, setShots, currentPlayer, onShot, onUndoZoneShot, 
     const newShot = {
       location: zoneId,
       made,
-      timestamp: new Date().toISOString(),
-      player: currentPlayer
+      timestamp: getEasternTimeISO(),
+      player: currentPlayer,
+      timerValue: currentElapsedTime, // Store what the timer showed when shot was taken
+      timeTakenForShot: calculateShotTime(currentElapsedTime) // Time since last shot
     };
     setShots([...shots, newShot]);
     if (onShot) onShot(newShot);
@@ -141,10 +215,39 @@ const CourtTracker = ({ shots, setShots, currentPlayer, onShot, onUndoZoneShot, 
 
   const stats = getStats();
 
-  return (
-    <div className="court-wrapper-single">
+  // Don't render court at all on mobile/tablet devices
+  if (shouldDisableCourtInteractions) {
+    return (
+      <div className="court-wrapper-single">
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '200px',
+          padding: '20px',
+          backgroundColor: '#f5f5f5',
+          borderRadius: '10px',
+          margin: '20px'
+        }}>
+          <div style={{
+            textAlign: 'center',
+            color: '#6F263D',
+            fontSize: '18px',
+            fontWeight: 'bold'
+          }}>
+            Court mode is not available on mobile devices.<br/>
+            Please use the zone buttons to track shots.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  try {
+    return (
+      <div className="court-wrapper-single">
       {/* Zone Editor Controls */}
-      {isEditorMode && !isMobilePhone && (
+      {isEditorMode && !shouldDisableCourtInteractions && (
         <div style={{
           position: 'absolute',
           top: '10px',
@@ -179,7 +282,7 @@ const CourtTracker = ({ shots, setShots, currentPlayer, onShot, onUndoZoneShot, 
           
           <div style={{ fontSize: '12px', marginBottom: '10px' }}>
             Points selected: {selectedPoints.length}
-            {selectedPoints.length >= 3 && <span style={{ color: '#90EE90' }}> ✓ Ready to generate</span>}
+            {selectedPoints.length >= 3 && <span style={{ color: '#90EE90' }}> Ready to generate</span>}
           </div>
           
           <div style={{ marginBottom: '10px', fontSize: '11px' }}>
@@ -271,8 +374,8 @@ const CourtTracker = ({ shots, setShots, currentPlayer, onShot, onUndoZoneShot, 
         </div>
       )}
       
-      {/* Editor Mode Toggle Button */}
-      {!sessionStarted && !isMobilePhone && (
+      {/* Editor Mode Toggle Button - Always visible on desktop */}
+      {!shouldDisableCourtInteractions && (
         <button
           onClick={() => setIsEditorMode(!isEditorMode)}
           style={{
@@ -297,7 +400,7 @@ const CourtTracker = ({ shots, setShots, currentPlayer, onShot, onUndoZoneShot, 
         className="court-container"
         onClick={handleCourtClick}
         style={{ 
-          cursor: (isEditorMode && !isMobilePhone) ? 'crosshair' : 'default',
+          cursor: (isEditorMode && !shouldDisableCourtInteractions) ? 'crosshair' : 'default',
           position: 'relative',
           display: 'inline-block',
           width: '100%',
@@ -305,7 +408,7 @@ const CourtTracker = ({ shots, setShots, currentPlayer, onShot, onUndoZoneShot, 
         }}
       >
         <img 
-          src="/court.png" 
+          src="/cavaliersCourt.png" 
           alt="Court" 
           className="court-image" 
           style={{
@@ -315,22 +418,21 @@ const CourtTracker = ({ shots, setShots, currentPlayer, onShot, onUndoZoneShot, 
           }}
         />
         
-        {/* SVG Overlay for Zone Boundaries and Clickable Areas */}
-        <svg 
-          className="court-overlay" 
-          viewBox="0 0 100 60" 
-          preserveAspectRatio="none"
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            pointerEvents: (isEditorMode && !isMobilePhone) ? 'none' : 'auto'
-          }}
-        >
-          {/* Editor Mode: Show selected points and preview polygon */}
-          {isEditorMode && !isMobilePhone && (
+        {/* Zone Editor Mode: SVG Overlay for point selection */}
+        {isEditorMode && !shouldDisableCourtInteractions && (
+          <svg 
+            className="court-overlay" 
+            viewBox="0 0 100 60" 
+            preserveAspectRatio="none"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              pointerEvents: 'none'
+            }}
+          >
             <g>
               {/* Selected Points */}
               {selectedPoints.map((point, index) => (
@@ -384,348 +486,193 @@ const CourtTracker = ({ shots, setShots, currentPlayer, onShot, onUndoZoneShot, 
                 );
               })}
             </g>
-          )}
-          
-          {/* Normal Mode: Show existing zones - Always available on tablets */}
-          {(!isEditorMode || isMobilePhone) && COURT_ZONES.map((zone) => {
-            const zoneStats = stats[zone.id] || { made: 0, attempts: 0 };
-            
-            return (
-              <g key={zone.id}>
-                {/* Zone Boundary - Visual Only */}
-                <polygon
-                  points={zone.polygon}
-                  fill="rgba(111, 38, 61, 0.1)"
-                  stroke="#000000"
-                  strokeWidth="1"
-                  style={{ pointerEvents: 'none' }}
-                />
-                
-                {/* Calculate zone center for text positioning */}
-                {(() => {
-                  const points = zone.polygon.split(' ').map(p => {
-                    const [x, y] = p.split(',').map(Number);
-                    return { x, y };
-                  });
-                  const centerX = points.reduce((sum, p) => sum + p.x, 0) / points.length;
-                  const centerY = points.reduce((sum, p) => sum + p.y, 0) / points.length;
-                  const minX = Math.min(...points.map(p => p.x));
-                  const maxX = Math.max(...points.map(p => p.x));
-                  const minY = Math.min(...points.map(p => p.y));
-                  const maxY = Math.max(...points.map(p => p.y));
-                  
-                  // Get zone letter
-                  const zoneLetters = {
-                    'left_corner': 'LC',
-                    'left_wing': 'LW', 
-                    'top_key': 'TK',
-                    'right_wing': 'RW',
-                    'right_corner': 'RC'
-                  };
-                  
-                  return (
-                    <>
-                      {/* Make Section (Top-left triangle) */}
-                      <polygon
-                        points={zone.polygon}
-                        fill="rgba(0, 200, 0, 1.0)"
-                        stroke="none"
-                        strokeWidth="0"
-                        style={{ 
-                          pointerEvents: (sessionStarted && !sessionPaused && !isMobilePhone) ? 'auto' : 'none',
-                          cursor: (sessionStarted && !sessionPaused && !isMobilePhone) ? 'pointer' : 'not-allowed',
-                          transition: 'fill 0.2s ease'
-                        }}
-                        clipPath={`url(#topLeftTriangle-${zone.id})`}
-                        onMouseEnter={(e) => {
-                          if (sessionStarted && !sessionPaused && !isMobilePhone) {
-                            e.target.style.fill = 'rgba(0, 255, 0, 1.0)';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          e.target.style.fill = 'rgba(0, 200, 0, 1.0)';
-                        }}
-                        onClick={(e) => !isMobilePhone && handlePolygonClick(zone.id, true, e)}
-                        title={sessionStarted ? 
-                          (sessionPaused ? 'Resume session to shoot' : 
-                          `${zone.label} - MAKE (${formatStatNumber(zoneStats.made)}/${formatStatNumber(zoneStats.attempts)})`) : 
-                          'Start session to shoot'}
-                      />
-                      
-                      {/* Miss Section (Bottom-right triangle) */}
-                      <polygon
-                        points={zone.polygon}
-                        fill="rgba(200, 0, 0, 1.0)"
-                        stroke="none"
-                        strokeWidth="0"
-                        style={{ 
-                          pointerEvents: (sessionStarted && !sessionPaused && !isMobilePhone) ? 'auto' : 'none',
-                          cursor: (sessionStarted && !sessionPaused && !isMobilePhone) ? 'pointer' : 'not-allowed',
-                          transition: 'fill 0.2s ease'
-                        }}
-                        clipPath={`url(#bottomRightTriangle-${zone.id})`}
-                        onMouseEnter={(e) => {
-                          if (sessionStarted && !sessionPaused && !isMobilePhone) {
-                            e.target.style.fill = 'rgba(255, 0, 0, 1.0)';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          e.target.style.fill = 'rgba(200, 0, 0, 1.0)';
-                        }}
-                        onClick={(e) => !isMobilePhone && handlePolygonClick(zone.id, false, e)}
-                        title={sessionStarted ? 
-                          (sessionPaused ? 'Resume session to shoot' : 
-                          `${zone.label} - MISS (${formatStatNumber(zoneStats.made)}/${formatStatNumber(zoneStats.attempts)})`) : 
-                          'Start session to shoot'}
-                      />
-                      
-                      {/* Make section text - White zone abbreviation and make count */}
-                      <text
-                        x={zone.id.includes('corner') ? centerX : 
-                          zone.id.includes('wing') ? 
-                            (zone.id === 'left_wing' ? minX + (centerX - minX) * 0.6 : centerX + (maxX - centerX) * 0.4) :
-                            minX + (centerX - minX) * 0.5}
-                        y={zone.id.includes('corner') ? minY + (centerY - minY) * 0.5 :
-                          zone.id.includes('wing') ? minY + (centerY - minY) * 0.6 :
-                            centerY}
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fontSize="1.8"
-                        fontWeight="bold"
-                        fill="white"
-                        style={{ 
-                          pointerEvents: 'none'
-                        }}
-                      >
-                        {zoneLetters[zone.id]}
-                      </text>
-                      <text
-                        x={zone.id.includes('corner') ? centerX : 
-                          zone.id.includes('wing') ? 
-                            (zone.id === 'left_wing' ? minX + (centerX - minX) * 0.6 : centerX + (maxX - centerX) * 0.4) :
-                            minX + (centerX - minX) * 0.5}
-                        y={zone.id.includes('corner') ? minY + (centerY - minY) * 0.5 + 2.5 :
-                          zone.id.includes('wing') ? minY + (centerY - minY) * 0.6 + 2.5 :
-                            centerY + 2.5}
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fontSize="1.2"
-                        fontWeight="bold"
-                        fill="white"
-                        style={{ pointerEvents: 'none' }}
-                      >
-                        {formatStatNumber(zoneStats.made)}
-                      </text>
-                      
-                      {/* Miss section text - White zone abbreviation and miss count */}
-                      <text
-                        x={zone.id.includes('corner') ? centerX : 
-                          zone.id.includes('wing') ? 
-                            (zone.id === 'left_wing' ? centerX + (maxX - centerX) * 0.4 : minX + (centerX - minX) * 0.6) :
-                            centerX + (maxX - centerX) * 0.5}
-                        y={zone.id.includes('corner') ? centerY + (maxY - centerY) * 0.5 :
-                          zone.id.includes('wing') ? centerY + (maxY - centerY) * 0.4 :
-                            centerY}
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fontSize="1.8"
-                        fontWeight="bold"
-                        fill="white"
-                        style={{ 
-                          pointerEvents: 'none'
-                        }}
-                      >
-                        {zoneLetters[zone.id]}
-                      </text>
-                      <text
-                        x={zone.id.includes('corner') ? centerX : 
-                          zone.id.includes('wing') ? 
-                            (zone.id === 'left_wing' ? centerX + (maxX - centerX) * 0.4 : minX + (centerX - minX) * 0.6) :
-                            centerX + (maxX - centerX) * 0.5}
-                        y={zone.id.includes('corner') ? centerY + (maxY - centerY) * 0.5 + 2.5 :
-                          zone.id.includes('wing') ? centerY + (maxY - centerY) * 0.4 + 2.5 :
-                            centerY + 2.5}
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fontSize="1.2"
-                        fontWeight="bold"
-                        fill="white"
-                        style={{ pointerEvents: 'none' }}
-                      >
-                        {formatStatNumber(zoneStats.attempts - zoneStats.made)}
-                      </text>
-                      
-                      {/* Total shot counter on boundary line - Cavs yellow */}
-                      <text
-                        x={centerX}
-                        y={zone.id.includes('corner') ? centerY :
-                          zone.id.includes('wing') ? centerY :
-                            centerY}
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fontSize="1.5"
-                        fontWeight="bold"
-                        fill="#FFB81C"
-                        stroke="#000000"
-                        strokeWidth="0.1"
-                        style={{ pointerEvents: 'none' }}
-                      >
-                        {formatStatNumber(zoneStats.attempts)}
-                      </text>
-                    </>
-                  );
-                })()}
-                
-                {/* Clip path definitions for each zone */}
-                <defs>
-                  <clipPath id={`topLeftTriangle-${zone.id}`}>
-                    {(() => {
-                      const points = zone.polygon.split(' ').map(p => {
-                        const [x, y] = p.split(',').map(Number);
-                        return { x, y };
-                      });
-                      
-                      // Find bounding box
-                      const minX = Math.min(...points.map(p => p.x));
-                      const maxX = Math.max(...points.map(p => p.x));
-                      const minY = Math.min(...points.map(p => p.y));
-                      const maxY = Math.max(...points.map(p => p.y));
-                      
-                      const centerX = (minX + maxX) / 2;
-                      const centerY = (minY + maxY) / 2;
-                      
-                      // Different sectional patterns based on zone type
-                      if (zone.id.includes('corner')) {
-                        // Horizontal split for corners
-                        return (
-                          <path
-                            d={`M ${minX} ${minY} L ${maxX} ${minY} L ${maxX} ${centerY} L ${minX} ${centerY} Z`}
-                          />
-                        );
-                      } else if (zone.id.includes('wing')) {
-                        // Diagonal split for wings (parallel to 3-point line)
-                        if (zone.id === 'left_wing') {
-                          // Left wing: diagonal from top-left to bottom-right
-                          return (
-                            <path
-                              d={`M ${minX} ${minY} L ${maxX} ${minY} L ${minX + (maxX - minX) * 0.3} ${maxY} L ${minX} ${maxY} Z`}
-                            />
-                          );
-                        } else {
-                          // Right wing: diagonal from top-right to bottom-left
-                          return (
-                            <path
-                              d={`M ${minX} ${minY} L ${maxX} ${minY} L ${maxX} ${maxY} L ${maxX - (maxX - minX) * 0.3} ${maxY} Z`}
-                            />
-                          );
-                        }
-                      } else {
-                        // Vertical split for top of key
-                        return (
-                          <path
-                            d={`M ${minX} ${minY} L ${centerX} ${minY} L ${centerX} ${maxY} L ${minX} ${maxY} Z`}
-                          />
-                        );
-                      }
-                    })()}
-                  </clipPath>
-                  
-                  <clipPath id={`bottomRightTriangle-${zone.id}`}>
-                    {(() => {
-                      const points = zone.polygon.split(' ').map(p => {
-                        const [x, y] = p.split(',').map(Number);
-                        return { x, y };
-                      });
-                      
-                      // Find bounding box
-                      const minX = Math.min(...points.map(p => p.x));
-                      const maxX = Math.max(...points.map(p => p.x));
-                      const minY = Math.min(...points.map(p => p.y));
-                      const maxY = Math.max(...points.map(p => p.y));
-                      
-                      const centerX = (minX + maxX) / 2;
-                      const centerY = (minY + maxY) / 2;
-                      
-                      // Different sectional patterns based on zone type
-                      if (zone.id.includes('corner')) {
-                        // Horizontal split for corners
-                        return (
-                          <path
-                            d={`M ${minX} ${centerY} L ${maxX} ${centerY} L ${maxX} ${maxY} L ${minX} ${maxY} Z`}
-                          />
-                        );
-                      } else if (zone.id.includes('wing')) {
-                        // Diagonal split for wings (parallel to 3-point line)
-                        if (zone.id === 'left_wing') {
-                          // Left wing: diagonal from top-left to bottom-right
-                          return (
-                            <path
-                              d={`M ${minX + (maxX - minX) * 0.3} ${maxY} L ${maxX} ${minY} L ${maxX} ${maxY} Z`}
-                            />
-                          );
-                        } else {
-                          // Right wing: diagonal from top-right to bottom-left
-                          return (
-                            <path
-                              d={`M ${minX} ${minY} L ${maxX - (maxX - minX) * 0.3} ${maxY} L ${minX} ${maxY} Z`}
-                            />
-                          );
-                        }
-                      } else {
-                        // Vertical split for top of key
-                        return (
-                          <path
-                            d={`M ${centerX} ${minY} L ${maxX} ${minY} L ${maxX} ${maxY} L ${centerX} ${maxY} Z`}
-                          />
-                        );
-                      }
-                    })()}
-                  </clipPath>
-                </defs>
-              </g>
-            );
-          })}
-        </svg>
+          </svg>
+        )}
 
-        {/* Zone labels and undo buttons - Always available on tablets */}
-        {(!isEditorMode || isMobilePhone) && COURT_ZONES.map((zone) => {
-          const zoneStats = stats[zone.id] || { made: 0, attempts: 0 };
-          const hasShots = zoneStats.attempts > 0;
-          
-          return hasShots ? (
-            <div 
-              key={`${zone.id}-undo`}
-              style={{
-                position: 'absolute',
-                ...zone.buttonPosition,
-                transform: 'translate(-50%, -50%)',
-                zIndex: 15
-              }}
-            >
-              {/* Undo Button */}
-              <button
-                className="zone-button undo-button"
-                onClick={() => onUndoZoneShot && onUndoZoneShot(zone.id)}
-                title={`Undo last shot from ${zone.label}`}
-                style={{
-                  padding: '4px 8px',
-                  backgroundColor: '#28a745',
-                  color: '#6F263D',
-                  border: '2px solid #FFB81C',
-                  borderRadius: '4px',
-                  fontSize: '10px',
-                  cursor: 'pointer',
-                  fontWeight: 'bold'
-                }}
-              >
-                UNDO
-              </button>
-            </div>
-          ) : null;
-        })}
+        {/* Interactive Zone Areas */}
+        {!isEditorMode && (
+          <svg 
+            className="court-overlay" 
+            viewBox="0 0 100 60" 
+            preserveAspectRatio="none"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              pointerEvents: 'auto'
+            }}
+          >
+            {/* Clip path definitions */}
+            <defs>
+              {COURT_ZONES.map((zone) => (
+                <g key={`defs-${zone.id}`}>
+                  <clipPath id={`makeSection-${zone.id}`}>
+                    {(() => {
+                      const points = zone.polygon.split(' ').map(p => {
+                        const [x, y] = p.split(',').map(Number);
+                        return { x, y };
+                      });
+                      
+                      const minX = Math.min(...points.map(p => p.x));
+                      const maxX = Math.max(...points.map(p => p.x));
+                      const minY = Math.min(...points.map(p => p.y));
+                      const maxY = Math.max(...points.map(p => p.y));
+                      const centerX = (minX + maxX) / 2;
+                      const centerY = (minY + maxY) / 2;
+                      
+                      if (zone.id.includes('corner')) {
+                        // Horizontal split for corners (top half = make)
+                        return (
+                          <path d={`M ${minX} ${minY} L ${maxX} ${minY} L ${maxX} ${centerY} L ${minX} ${centerY} Z`} />
+                        );
+                      } else if (zone.id.includes('wing')) {
+                        // Diagonal split for wings
+                        if (zone.id === 'left_wing') {
+                          return (
+                            <path d={`M ${minX} ${minY} L ${maxX} ${minY} L ${minX + (maxX - minX) * 0.3} ${maxY} L ${minX} ${maxY} Z`} />
+                          );
+                        } else {
+                          return (
+                            <path d={`M ${minX} ${minY} L ${maxX} ${minY} L ${maxX} ${maxY} L ${maxX - (maxX - minX) * 0.3} ${maxY} Z`} />
+                          );
+                        }
+                      } else {
+                        // Vertical split for top of key (left half = make)
+                        return (
+                          <path d={`M ${minX} ${minY} L ${centerX} ${minY} L ${centerX} ${maxY} L ${minX} ${maxY} Z`} />
+                        );
+                      }
+                    })()}
+                  </clipPath>
+                  
+                  <clipPath id={`missSection-${zone.id}`}>
+                    {(() => {
+                      const points = zone.polygon.split(' ').map(p => {
+                        const [x, y] = p.split(',').map(Number);
+                        return { x, y };
+                      });
+                      
+                      const minX = Math.min(...points.map(p => p.x));
+                      const maxX = Math.max(...points.map(p => p.x));
+                      const minY = Math.min(...points.map(p => p.y));
+                      const maxY = Math.max(...points.map(p => p.y));
+                      const centerX = (minX + maxX) / 2;
+                      const centerY = (minY + maxY) / 2;
+                      
+                      if (zone.id.includes('corner')) {
+                        // Horizontal split for corners (bottom half = miss)
+                        return (
+                          <path d={`M ${minX} ${centerY} L ${maxX} ${centerY} L ${maxX} ${maxY} L ${minX} ${maxY} Z`} />
+                        );
+                      } else if (zone.id.includes('wing')) {
+                        // Diagonal split for wings
+                        if (zone.id === 'left_wing') {
+                          return (
+                            <path d={`M ${minX + (maxX - minX) * 0.3} ${maxY} L ${maxX} ${minY} L ${maxX} ${maxY} Z`} />
+                          );
+                        } else {
+                          return (
+                            <path d={`M ${minX} ${minY} L ${maxX - (maxX - minX) * 0.3} ${maxY} L ${minX} ${maxY} Z`} />
+                          );
+                        }
+                      } else {
+                        // Vertical split for top of key (right half = miss)
+                        return (
+                          <path d={`M ${centerX} ${minY} L ${maxX} ${minY} L ${maxX} ${maxY} L ${centerX} ${maxY} Z`} />
+                        );
+                      }
+                    })()}
+                  </clipPath>
+                </g>
+              ))}
+            </defs>
+
+            {COURT_ZONES.map((zone) => {
+              const zoneStats = stats[zone.id] || { made: 0, attempts: 0 };
+              
+              return (
+                <g key={zone.id}>
+                  {/* Make Section (Left/Top half) */}
+                  <polygon
+                    points={zone.polygon}
+                    fill="rgba(0, 200, 0, 0.3)"
+                    stroke="none"
+                    strokeWidth="0"
+                    style={{ 
+                      pointerEvents: (sessionStarted && !sessionPaused && shots.length < 100) ? 'auto' : 'none',
+                      cursor: (sessionStarted && !sessionPaused && shots.length < 100) ? 'pointer' : 'not-allowed',
+                      transition: 'fill 0.2s ease'
+                    }}
+                    clipPath={`url(#makeSection-${zone.id})`}
+                    onMouseEnter={(e) => {
+                      if (sessionStarted && !sessionPaused && shots.length < 100) {
+                        e.target.style.fill = 'rgba(0, 255, 0, 0.5)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.fill = 'rgba(0, 200, 0, 0.3)';
+                    }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleZoneClick(zone.id, true);
+                    }}
+                    title={sessionStarted ? 
+                      (sessionPaused ? 'Resume session to shoot' : 
+                      shots.length >= 100 ? 'Test complete! 100 shots taken.' :
+                      `MAKE from ${zone.label}`) : 
+                      'Start session to shoot'}
+                  />
+                  
+                  {/* Miss Section (Right/Bottom half) */}
+                  <polygon
+                    points={zone.polygon}
+                    fill="rgba(200, 0, 0, 0.3)"
+                    stroke="none"
+                    strokeWidth="0"
+                    style={{ 
+                      pointerEvents: (sessionStarted && !sessionPaused && shots.length < 100) ? 'auto' : 'none',
+                      cursor: (sessionStarted && !sessionPaused && shots.length < 100) ? 'pointer' : 'not-allowed',
+                      transition: 'fill 0.2s ease'
+                    }}
+                    clipPath={`url(#missSection-${zone.id})`}
+                    onMouseEnter={(e) => {
+                      if (sessionStarted && !sessionPaused && shots.length < 100) {
+                        e.target.style.fill = 'rgba(255, 0, 0, 0.5)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.fill = 'rgba(200, 0, 0, 0.3)';
+                    }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleZoneClick(zone.id, false);
+                    }}
+                    title={sessionStarted ? 
+                      (sessionPaused ? 'Resume session to shoot' : 
+                      shots.length >= 100 ? 'Test complete! 100 shots taken.' :
+                      `MISS from ${zone.label}`) : 
+                      'Start session to shoot'}
+                  />
+
+
+                </g>
+              );
+            })}
+          </svg>
+        )}
+
+        {/* Individual zone undo buttons removed - using global undo button instead */}
       </div>
     </div>
   );
+  } catch (error) {
+    console.error('CourtTracker render error:', error);
+    return <div>Error loading court. Please try refreshing the page.</div>;
+  }
 };
 
 export default CourtTracker;
