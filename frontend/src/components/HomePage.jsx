@@ -39,6 +39,7 @@ import './HomePage.css';
  * - Large button targets for touch interface compatibility
  * - Clear, descriptive button labels for cognitive accessibility
  */
+// HomePage: Landing page with navigation options - Called from App.jsx renderContent()
 const HomePage = ({ onStartNewTest, onDownloadResults }) => {
   return (
     <div className="home-page">

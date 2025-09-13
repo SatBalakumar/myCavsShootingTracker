@@ -144,7 +144,6 @@ export const shootingSessionManager = {
         sequenceNumber: this.getNextSequence()
       });
       
-      console.log('Session started with event logging:', sessionData);
       return sessionData;
     } catch (error) {
       console.error('Error starting shooting session:', error);
@@ -205,7 +204,6 @@ export const shootingSessionManager = {
         zoneStats: newStats.zoneStats
       });
 
-      console.log('Shot recorded with event:', shot);
       return shot;
     } catch (error) {
       console.error('Error recording shot:', error);
@@ -231,7 +229,6 @@ export const shootingSessionManager = {
         sequenceNumber: this.getNextSequence()
       });
       
-      console.log('Session pause event logged');
     } catch (error) {
       console.error('Error logging pause event:', error);
       throw error;
@@ -257,7 +254,6 @@ export const shootingSessionManager = {
         sequenceNumber: this.getNextSequence()
       });
       
-      console.log('Session resume event logged');
     } catch (error) {
       console.error('Error logging resume event:', error);
       throw error;
@@ -291,7 +287,6 @@ export const shootingSessionManager = {
         ...finalStats
       });
       
-      console.log('Session ended with event logging');
       return { logID, totalSessionTime };
     } catch (error) {
       console.error('Error ending session:', error);
@@ -311,23 +306,17 @@ export const shootingSessionManager = {
       const currentTime = new Date().getTime();
       const elapsedTime = Math.floor((currentTime - sessionStartTime) / 1000);
       
-      console.log('Attempting to undo shot for zone:', zoneId, 'in session:', logID);
-      
       // Get all shots for this log
       const shots = await shotsService.getLogShots(logID);
-      console.log('Found shots:', shots.length);
       
       // Find the last shot from the specified zone
       const zoneShots = shots.filter(shot => shot.shotZone === zoneId);
-      console.log('Zone shots found:', zoneShots.length, 'for zone:', zoneId);
       
       if (zoneShots.length === 0) {
-        console.log('No shots found for zone:', zoneId);
         return null; // Return null instead of throwing error
       }
       
       const lastZoneShot = zoneShots[zoneShots.length - 1];
-      console.log('Last zone shot to undo:', lastZoneShot.shotID);
       
       // Log undo event before deleting the shot
       await sessionEventsService.addEvent({
@@ -345,7 +334,6 @@ export const shootingSessionManager = {
       
       // Delete the shot
       await shotsService.deleteShot(lastZoneShot.shotID);
-      console.log('Shot deleted successfully');
       
       // Update shooting log
       const currentLog = await shootingLogsService.getShootingLog(logID);
@@ -360,7 +348,6 @@ export const shootingSessionManager = {
         ...newStats
       });
 
-      console.log('Shot undone with event logging:', lastZoneShot);
       return { undoShot: lastZoneShot, newStats };
     } catch (error) {
       console.error('Error undoing shot:', error);
@@ -457,15 +444,12 @@ export const shootingSessionManager = {
   // Get player sessions in date range
   async getPlayerSessions({ playerId, startDate, endDate }) {
     try {
-      console.log('SessionManager: Getting sessions for playerId:', playerId);
       
       // Get all shooting logs for the player - use the correct field name
       const allLogs = await shootingLogsService.getShootingLogsByPlayer(playerId);
       
-      console.log('SessionManager: Found logs:', allLogs.length);
       
       if (!allLogs || allLogs.length === 0) {
-        console.log('SessionManager: No logs found for this player');
         return [];
       }
 
@@ -492,12 +476,10 @@ export const shootingSessionManager = {
       const enrichedSessions = await Promise.all(
         filteredLogs.map(async (log) => {
           try {
-            console.log(`Processing session ${log.logID} for enrichment`);
             
             const shots = await shotsService.getLogShots(log.logID);
             const sessionEvents = await sessionEventsService.getEventsByLogID(log.logID);
             
-            console.log(`Session ${log.logID}: Found ${shots ? shots.length : 0} shots, ${sessionEvents ? sessionEvents.length : 0} events`);
             
             const startEvent = sessionEvents.find(event => event.eventType === 'session_start');
             const endEvent = sessionEvents.find(event => event.eventType === 'session_end');
@@ -507,39 +489,35 @@ export const shootingSessionManager = {
             if (shots && shots.length > 0) {
               // Find the maximum timeTaken value which represents the session duration
               const maxTimerValue = Math.max(...shots.map(shot => shot.timeTaken || 0));
-              console.log(`Duration calculation - maxTimerValue: ${maxTimerValue}`);
               
               // Check if timeTaken appears to be in milliseconds (> 1000 suggests milliseconds)
               // For a reasonable shooting session, seconds should be < 3600 (1 hour)
               if (maxTimerValue > 3600) {
-                console.log(`timeTaken appears to be in milliseconds`);
                 duration = this.formatDuration(maxTimerValue);
               } else {
-                console.log(`timeTaken appears to be in seconds`);
                 duration = this.formatDuration(maxTimerValue * 1000);
               }
-              console.log(`Duration calculation - formatted duration: ${duration}`);
+
             } else if (startEvent && endEvent) {
               // Fallback to session events if no shots available
               const startTime = new Date(startEvent.timestamp).getTime();
               const endTime = new Date(endEvent.timestamp).getTime();
               const durationMs = endTime - startTime;
-              console.log(`Duration calculation - event-based duration: ${durationMs}ms`);
+
               duration = this.formatDuration(durationMs);
-              console.log(`Duration calculation - formatted duration: ${duration}`);
+
             } else if (log.sessionDuration) {
               // sessionDuration is stored in seconds, formatDuration expects milliseconds
-              console.log(`Duration calculation - log.sessionDuration: ${log.sessionDuration} seconds`);
+
               duration = this.formatDuration(log.sessionDuration * 1000);
-              console.log(`Duration calculation - formatted duration: ${duration}`);
+
             }
             
             const totalShots = shots ? shots.length : 0;
             const madeShots = shots ? shots.filter(shot => shot.shotResult === 'made').length : 0;
             const accuracy = totalShots > 0 ? ((madeShots / totalShots) * 100).toFixed(1) + '%' : '0%';
             
-            console.log(`Session ${log.logID}: Duration=${duration}, Shots=${totalShots}, Made=${madeShots}, Accuracy=${accuracy}`);
-            
+
             return {
               sessionId: log.logID,
               playerId: log.playerID,
@@ -585,12 +563,10 @@ export const shootingSessionManager = {
   async discardSession(sessionData) {
     try {
       if (!sessionData || !sessionData.logID) {
-        console.log('No session to discard');
         return;
       }
 
       const { logID } = sessionData;
-      console.log('Discarding session with logID:', logID);
 
       // Delete all shots for this session
       const shots = await shotsService.getLogShots(logID);
@@ -607,7 +583,6 @@ export const shootingSessionManager = {
       // Delete the shooting log itself
       await shootingLogsService.deleteShootingLog(logID);
 
-      console.log('Session discarded successfully');
     } catch (error) {
       console.error('Error discarding session:', error);
       throw error;

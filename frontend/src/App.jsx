@@ -1,147 +1,52 @@
-/**
- * BASKETBALL SHOOTING TRACKER - MAIN APPLICATION COMPONENT
- * 
- * Primary Purpose: Cleveland Cavaliers shooting performance tracking system
- * Target Users: Basketball coaches, players, and performance analysts
- * Device Support: Desktop (interactive court) and mobile/tablet (zone buttons)
- * 
- * Core Architecture:
- * - React state management for real-time session tracking
- * - Firebase integration for data persistence and analytics
- * - Responsive design with device-specific UI optimizations
- * - Eastern Time timezone handling for Cleveland-based operations
- * 
- * Key Features:
- * 1. Multi-modal shooting tracking (court clicks vs zone buttons)
- * 2. Real-time session management with pause/resume capability
- * 3. Player selection and jersey number-based organization
- * 4. Comprehensive shot analytics with zone-based statistics
- * 5. CSV data export for external analysis
- * 6. Undo functionality for error correction
- * 7. Session persistence and historical tracking
- */
-
 import React, { useState, useLayoutEffect, useCallback } from 'react';
 import HomePage from './components/HomePage';
 import PlayerSelection from './components/PlayerSelection';
-import CourtTracker from './components/CourtTracker';
 import ZoneButtons from './components/ZoneButtons';
 import HistoryLog from './components/HistoryLog';
-import ShootingStatistics from './components/ShootingStatistics';
 import DownloadResults from './components/DownloadResults';
+import Modal from './components/Modal';
 import { AppBar, Toolbar, Box, Typography } from '@mui/material';
 import { shootingSessionManager } from './firebase/sessionManager';
 import { getEasternTimeISO } from './utils/timezone';
 import { addCavsRoster } from './utils/addRoster';
 
-/**
- * DEVELOPER UTILITY: Global roster management function
- * Makes addCavsRoster available in browser console for easy player data management
- * Usage: window.addCavsRoster() in browser console to populate initial roster
- */
 window.addCavsRoster = addCavsRoster;
 
-/**
- * APP COMPONENT: Central application controller and state manager
- * 
- * State Management Architecture:
- * - Local state for session management and UI control
- * - Firebase state for data persistence and cross-session tracking
- * - Device state for responsive behavior and orientation handling
- * 
- * Design Philosophy:
- * - Declarative state updates with clear separation of concerns
- * - Defensive programming with comprehensive error handling
- * - User-centric design with confirmation dialogs for destructive actions
- * - Performance optimization through strategic re-rendering control
- */
+// App: Main application component managing all navigation and state - Entry point
 function App() {
-  /**
-   * CORE SHOOTING SESSION STATE
-   * Primary data structures for tracking basketball shooting performance
-   */
-  const [shots, setShots] = useState([]);                           // Array of shot objects with timing, location, and outcome data
-  const [lastUndoShotTime, setLastUndoShotTime] = useState(null);   // Timer value from most recently undone shot (for accurate timing restoration)
+  const [shots, setShots] = useState([]);
+  const [lastUndoShotTime, setLastUndoShotTime] = useState(null);
   
-  /**
-   * USER INTERFACE STATE
-   * Controls visual presentation and interaction modes
-   */
-  const [isMapMode, setIsMapMode] = useState(true);                 // Boolean: true for court view, false for zone buttons (desktop vs mobile)
-  const [currentPage, setCurrentPage] = useState('home');          // String: navigation state ('home', 'playerSelection', 'shootingTest')
-  const [selectedPlayer, setSelectedPlayer] = useState(null);      // Object: currently selected player with jersey number, name, and metadata
+  const [currentPage, setCurrentPage] = useState('home');
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
   
-  /**
-   * DIALOG STATE MANAGEMENT
-   * Controls modal dialog visibility for user confirmations and data operations
-   * 
-   * Design Decision: Separate state variables for each dialog provide:
-   * - Clear code readability and maintenance
-   * - Independent dialog behavior without state conflicts
-   * - Easier debugging and state tracking
-   * - Better user experience with specific dialog handling
-   */
-  const [showEndSessionDialog, setShowEndSessionDialog] = useState(false);       // End session with save option
-  const [showDiscardConfirmDialog, setShowDiscardConfirmDialog] = useState(false); // First-stage discard confirmation
-  const [showSaveDialog, setShowSaveDialog] = useState(false);                   // Save session data confirmation
-  const [showResultsDialog, setShowResultsDialog] = useState(false);             // Display session results and statistics
-  const [showReviewDialog, setShowReviewDialog] = useState(false);               // Review and edit shot data
-  const [showResetDialog, setShowResetDialog] = useState(false);                 // Reset/clear session confirmation
-  const [showExitDialog, setShowExitDialog] = useState(false);                   // Exit application confirmation
+  const [showEndSessionDialog, setShowEndSessionDialog] = useState(false);
+  const [showDiscardConfirmDialog, setShowDiscardConfirmDialog] = useState(false);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [showResultsDialog, setShowResultsDialog] = useState(false);
+  const [showReviewDialog, setShowReviewDialog] = useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [showExitDialog, setShowExitDialog] = useState(false);
   
-  /**
-   * SESSION TIMING STATE
-   * Manages real-time session duration tracking with pause/resume capability
-   * 
-   * Timing Architecture:
-   * - startTime: Absolute timestamp when session began
-   * - totalPausedTime: Cumulative milliseconds spent in paused state
-   * - lastPauseTime: Timestamp when most recent pause began
-   * - elapsedTime: Calculated active session duration (excludes paused time)
-   */
-  const [sessionStarted, setSessionStarted] = useState(false);      // Boolean: whether shooting session is active
+  const [sessionStarted, setSessionStarted] = useState(false);
   const [sessionPaused, setSessionPaused] = useState(false);       // Boolean: whether session is temporarily paused
   const [startTime, setStartTime] = useState(null);                // Date: timestamp when session began
   const [totalPausedTime, setTotalPausedTime] = useState(0);       // Number: cumulative milliseconds spent paused
   const [lastPauseTime, setLastPauseTime] = useState(null);        // Date: timestamp when current pause began
-  const [elapsedTime, setElapsedTime] = useState(0);               // Number: active session duration in milliseconds
+  const [elapsedTime, setElapsedTime] = useState(0);
   
-  /**
-   * USER INTERFACE PREFERENCES
-   * Persistent UI state that survives orientation changes and app interactions
-   */
-  const [isReversed, setIsReversed] = useState(false);             // Boolean: whether zone button order is reversed (user preference)
+  const [isReversed, setIsReversed] = useState(false);
   
-  /**
-   * RESPONSIVE DESIGN STATE
-   * Real-time device and orientation tracking for adaptive UI behavior
-   * 
-   * Why separate state for dimensions and orientation:
-   * - Device rotation can change dimensions without changing orientation value
-   * - Window resizing (desktop) affects dimensions but not orientation
-   * - Separate tracking enables more precise responsive behavior
-   * - AppRenderKey forces full re-renders when device characteristics change significantly
-   */
   const [windowDimensions, setWindowDimensions] = useState({
     width: window.innerWidth,
     height: window.innerHeight
   });
-  const [orientation, setOrientation] = useState(window.orientation || 0);  // Device orientation in degrees (0, 90, -90, 180)
-  const [appRenderKey, setAppRenderKey] = useState(0);                      // Render key: incrementing forces React to completely re-render components
+  const [orientation, setOrientation] = useState(window.orientation || 0);
+  const [appRenderKey, setAppRenderKey] = useState(0);
   
-  /**
-   * FIREBASE INTEGRATION STATE
-   * Manages cloud data persistence and cross-session continuity
-   * 
-   * Firebase Design Pattern:
-   * - currentFirebaseSession: Active session reference for real-time updates
-   * - firebaseSessionError: Error state for graceful failure handling
-   * - Separation allows for offline functionality with later sync capability
-   */
-  const [currentFirebaseSession, setCurrentFirebaseSession] = useState(null);  // Firebase session document reference
-  const [firebaseSessionError, setFirebaseSessionError] = useState(null);     // Error object for Firebase operation failures
+  const [currentFirebaseSession, setCurrentFirebaseSession] = useState(null);
+  const [firebaseSessionError, setFirebaseSessionError] = useState(null);
 
-  // State to track coach actions locally for CSV export
   const [coachActions, setCoachActions] = useState([]);
 
   // Function to log coach actions locally
@@ -154,7 +59,6 @@ function App() {
       ...additionalData
     };
     setCoachActions(prev => [...prev, coachAction]);
-    console.log('Coach action logged:', coachAction);
   };
 
   // Enhanced device detection using dynamic window dimensions
@@ -183,7 +87,6 @@ function App() {
       width: window.innerWidth,
       height: window.innerHeight
     };
-    console.log('App: Resize detected', newDimensions); // Debug log
     setWindowDimensions(newDimensions);
     setAppRenderKey(prev => prev + 1); // Force app-wide re-render
   }, []);
@@ -194,7 +97,6 @@ function App() {
         width: window.innerWidth,
         height: window.innerHeight
       };
-      console.log('App: Orientation changed', newDimensions); // Debug log
       setOrientation(window.orientation || 0);
       setWindowDimensions(newDimensions);
       setAppRenderKey(prev => prev + 1); // Force app-wide re-render
@@ -219,21 +121,6 @@ function App() {
       }
     };
   }, [handleResize, handleOrientationChange]);
-
-  // Force Zone Buttons mode on mobile phones
-  React.useEffect(() => {
-    if (isMobilePhone() && isMapMode) {
-      setIsMapMode(false);
-    }
-  }, [isMobilePhone, isMapMode, windowDimensions]);
-
-  // Force Zone Buttons mode on mobile devices (including tablets) since they can't access court mode
-  React.useEffect(() => {
-    if (isMobileDevice() && isMapMode) {
-      setIsMapMode(false);
-    }
-  }, [isMobileDevice, isMapMode, windowDimensions]);
-
   // Timer effect
   React.useEffect(() => {
     let interval = null;
@@ -250,7 +137,6 @@ function App() {
   // Auto-complete session when 100 shots are reached
   React.useEffect(() => {
     if (sessionStarted && shots.length === 100) {
-      console.log('100 shots reached, auto-completing session');
       handleEndSession();
     }
   }, [shots.length, sessionStarted]);
@@ -415,8 +301,6 @@ function App() {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
-        
-        console.log(`Shooting data exported: ${filename}`);
       }
     } catch (error) {
       console.error('Error generating report:', error);
@@ -425,7 +309,6 @@ function App() {
   };
 
   const handlePlayerSelected = (playerObject) => {
-    console.log('Player selected:', playerObject); // Debug log
     setSelectedPlayer(playerObject); // Now receives full player object
     setShots([]); // Reset shots for new test
     setSessionStarted(false);
@@ -436,7 +319,6 @@ function App() {
     // Clear any previous Firebase errors when starting fresh
     setFirebaseSessionError(null);
     setCurrentFirebaseSession(null);
-    console.log('Navigating to shooting test page'); // Debug log
   };
 
   const handleStartSession = async () => {
@@ -445,14 +327,11 @@ function App() {
       
       // Check if this is a guest session - if so, skip Firebase entirely
       if (selectedPlayer?.isGuest) {
-        console.log('Starting guest session - skipping Firebase');
         setCurrentFirebaseSession(null);
       } else {
         // Start Firebase session for regular players only
-        console.log('Starting Firebase session for player:', selectedPlayer);
         const firebaseSession = await shootingSessionManager.startShootingSession(selectedPlayer.id);
         setCurrentFirebaseSession(firebaseSession);
-        console.log('Session started successfully:', firebaseSession);
       }
       
       // Start local session tracking (for both guest and regular players)
@@ -528,8 +407,6 @@ function App() {
     try {
       // End Firebase session if active
       if (currentFirebaseSession) {
-        console.log('Ending Firebase session...');
-        
         // Calculate final stats for the session
         const finalStats = {
           totalShots: shots.length,
@@ -540,7 +417,6 @@ function App() {
         
         await shootingSessionManager.endShootingSession(currentFirebaseSession, finalStats);
         setCurrentFirebaseSession(null);
-        console.log('Firebase session ended successfully');
       }
     } catch (error) {
       console.error('Error ending Firebase session:', error);
@@ -572,18 +448,17 @@ function App() {
     setShowResetDialog(false);
   };
 
+  // handleShot: Records shot data and saves to Firebase - Called by ZoneButtons and CourtTracker
   const handleShot = async (newShot) => {
     try {
       // Record shot in Firebase if session is active
       if (currentFirebaseSession) {
-        console.log('Recording shot in Firebase:', newShot);
         await shootingSessionManager.recordShot(currentFirebaseSession, {
           location: newShot.location,
           made: newShot.made,
           timeTaken: elapsedTime,
           sequenceNumber: shots.length + 1
         });
-        console.log('Shot recorded successfully in Firebase');
       }
     } catch (error) {
       console.error('Error recording shot in Firebase:', error);
@@ -598,7 +473,6 @@ function App() {
   const handleUndoLastShot = async () => {
     // Single undo button - undoes the most recent shot regardless of zone
     if (shots.length === 0) {
-      console.log('No shots to undo');
       return;
     }
     
@@ -625,14 +499,7 @@ function App() {
     // Attempt Firebase undo
     try {
       if (currentFirebaseSession && sessionStarted) {
-        console.log('Attempting to undo last shot in Firebase for zone:', lastShot.location);
         const undoResult = await shootingSessionManager.undoLastShot(currentFirebaseSession, lastShot.location);
-        
-        if (undoResult) {
-          console.log('Shot undone successfully in Firebase:', undoResult);
-        } else {
-          console.log('No shots found in Firebase for zone:', lastShot.location, '(local undo still completed)');
-        }
       }
     } catch (error) {
       console.error('Error undoing shot in Firebase:', error);
@@ -764,9 +631,7 @@ function App() {
     try {
       // If there's a Firebase session active, discard it completely
       if (currentFirebaseSession && !selectedPlayer?.isGuest) {
-        console.log('Discarding Firebase session...');
         await shootingSessionManager.discardSession(currentFirebaseSession);
-        console.log('Firebase session discarded successfully');
       }
       
       // Reset all local state
@@ -798,9 +663,7 @@ function App() {
     try {
       // If there's a Firebase session active, discard it completely
       if (currentFirebaseSession && !selectedPlayer?.isGuest) {
-        console.log('Discarding Firebase session...');
         await shootingSessionManager.discardSession(currentFirebaseSession);
-        console.log('Firebase session discarded successfully');
       }
       
       // Reset all local state
@@ -831,9 +694,8 @@ function App() {
     handleBackToHome();
   };
 
+  // renderContent: Navigation controller rendering current page component - Called by main App render
   const renderContent = () => {
-    console.log('Rendering page:', currentPage, 'Selected player:', selectedPlayer); // Debug log
-    
     switch (currentPage) {
       case 'home':
         return (
@@ -1101,63 +963,6 @@ function App() {
               </button>
             </div>
 
-            {/* Mode Toggle - ALWAYS SHOW FOR DEBUGGING */}
-            <div className="mode-toggle" style={{ 
-              display: 'flex', 
-              backgroundColor: '#6F263D', 
-              borderRadius: '8px', 
-              padding: '3px', 
-              gap: '3px', 
-              border: '2px solid #FFB81C',
-              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
-              width: '100%',
-              maxWidth: '100vw',
-              margin: '0 auto',
-              boxSizing: 'border-box'
-            }}>
-                {/* Only show Court View button on tablets and desktop */}
-                <button 
-                  className={`toggle-button ${isMapMode ? 'active' : ''}`}
-                  onClick={() => setIsMapMode(true)}
-                  style={{
-                    padding: '0.5rem 0.75rem',
-                    fontSize: '0.9rem',
-                    fontWeight: 'bold',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s ease',
-                    backgroundColor: isMapMode ? '#FFB81C' : 'transparent',
-                    color: isMapMode ? '#6F263D' : '#FFB81C',
-                    flex: 1,
-                    minHeight: '36px',
-                    boxSizing: 'border-box'
-                  }}
-                >
-                  Court View
-                </button>
-                <button 
-                  className={`toggle-button ${!isMapMode ? 'active' : ''}`}
-                  onClick={() => setIsMapMode(false)}
-                  style={{
-                    padding: '0.5rem 0.75rem',
-                    fontSize: '0.9rem',
-                    fontWeight: 'bold',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s ease',
-                    backgroundColor: !isMapMode ? '#FFB81C' : 'transparent',
-                    color: !isMapMode ? '#6F263D' : '#FFB81C',
-                    flex: 1,
-                    minHeight: '36px',
-                    boxSizing: 'border-box'
-                  }}
-                >
-                  Zone Buttons
-                </button>
-              </div>
-
             {/* Main Content Area */}
             <div style={{
               display: 'flex',
@@ -1173,119 +978,40 @@ function App() {
               overflowY: 'visible'
             }}>
               {/* Shooting Interface */}
-              <div style={{ 
-                flex: window.innerWidth > 768 ? '2' : '1',
-                display: 'flex',
-                justifyContent: 'center',
-                maxWidth: '100%',
-                height: 'auto',
-                boxSizing: 'border-box'
-              }}>
-                {isMapMode ? (
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: window.innerWidth > 1024 ? 'row' : 'column',
-                    gap: '0.5rem',
-                    width: '100%',
-                    height: 'auto'
-                  }}>
-                    {/* Court Tracker */}
-                    <div style={{
-                      flex: window.innerWidth > 1024 ? '2' : '1',
-                      minWidth: '300px'
-                    }}>
-                      <CourtTracker 
-                        shots={shots} 
-                        setShots={setShots} 
-                        currentPlayer={selectedPlayer?.name || 'Unknown Player'}
-                        onShot={handleShot}
-                        onUndoLastShot={handleUndoLastShot}
-                        lastUndoShotTime={lastUndoShotTime}
-                        setLastUndoShotTime={setLastUndoShotTime}
-                        sessionStarted={sessionStarted}
-                        sessionPaused={sessionPaused}
-                        currentElapsedTime={elapsedTime}
-                        windowDimensions={windowDimensions}
-                        orientation={orientation}
-                        isIPhoneLandscape={isIPhoneLandscape}
-                        appRenderKey={appRenderKey}
-                      />
-                    </div>
-                    
-                    {/* Right sidebar with Statistics and Shot Log vertically stacked */}
-                    {window.innerWidth > 1024 && (
-                      <div style={{
-                        flex: '1',
-                        minWidth: '300px',
-                        maxWidth: '400px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.5rem'
-                      }}>
-                        {/* Shooting Statistics Box */}
-                        <ShootingStatistics 
-                          shots={shots}
-                          windowDimensions={windowDimensions}
-                          sessionStarted={sessionStarted}
-                        />
-                        
-                        {/* Shot Log below Statistics */}
-                        <HistoryLog 
-                          shots={shots} 
-                          playerName={selectedPlayer?.name || 'Unknown Player'} 
-                          sessionStartTime={startTime}
-                          totalPausedTime={totalPausedTime}
-                          windowDimensions={windowDimensions}
-                          orientation={orientation}
-                          isIPhoneLandscape={isIPhoneLandscape}
-                          appRenderKey={appRenderKey}
-                        />
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <ZoneButtons 
-                    shots={shots} 
-                    setShots={setShots} 
-                    currentPlayer={selectedPlayer?.name || 'Unknown Player'}
-                    onShot={handleShot}
-                    onUndoLastShot={handleUndoLastShot}
-                    lastUndoShotTime={lastUndoShotTime}
-                    setLastUndoShotTime={setLastUndoShotTime}
-                    sessionStarted={sessionStarted}
-                    sessionPaused={sessionPaused}
-                    currentElapsedTime={elapsedTime}
-                    windowDimensions={windowDimensions}
-                    orientation={orientation}
-                    isIPhoneLandscape={isIPhoneLandscape}
-                    appRenderKey={appRenderKey}
-                    isReversed={isReversed}
-                    setIsReversed={setIsReversed}
-                  />
-                )}
+              <div className="zone-buttons-container">
+                <ZoneButtons 
+                  shots={shots} 
+                  setShots={setShots} 
+                  currentPlayer={selectedPlayer?.name || 'Unknown Player'}
+                  onShot={handleShot}
+                  onUndoLastShot={handleUndoLastShot}
+                  lastUndoShotTime={lastUndoShotTime}
+                  setLastUndoShotTime={setLastUndoShotTime}
+                  sessionStarted={sessionStarted}
+                  sessionPaused={sessionPaused}
+                  currentElapsedTime={elapsedTime}
+                  windowDimensions={windowDimensions}
+                  orientation={orientation}
+                  isIPhoneLandscape={isIPhoneLandscape}
+                  appRenderKey={appRenderKey}
+                  isReversed={isReversed}
+                  setIsReversed={setIsReversed}
+                />
               </div>
 
-              {/* History Log - Show separately on smaller screens OR in zone mode */}
-              {(window.innerWidth <= 1024 || !isMapMode) && (
-                <div style={{ 
-                  flex: window.innerWidth > 768 ? '1' : 'none',
-                  minWidth: window.innerWidth > 768 ? '200px' : 'auto',
-                  maxWidth: '100%',
-                  height: 'auto',
-                  boxSizing: 'border-box'
-                }}>
-                  <HistoryLog 
-                    shots={shots} 
-                    playerName={selectedPlayer?.name || 'Unknown Player'} 
-                    sessionStartTime={startTime}
-                    totalPausedTime={totalPausedTime}
-                    windowDimensions={windowDimensions}
-                    orientation={orientation}
-                    isIPhoneLandscape={isIPhoneLandscape}
-                    appRenderKey={appRenderKey}
-                  />
-                </div>
-              )}
+              {/* History Log */}
+              <div className="history-log-container">
+                <HistoryLog 
+                  shots={shots} 
+                  playerName={selectedPlayer?.name || 'Unknown Player'} 
+                  sessionStartTime={startTime}
+                  totalPausedTime={totalPausedTime}
+                  windowDimensions={windowDimensions}
+                  orientation={orientation}
+                  isIPhoneLandscape={isIPhoneLandscape}
+                  appRenderKey={appRenderKey}
+                />
+              </div>
             </div>
             </div>
         );
@@ -1298,16 +1024,7 @@ function App() {
   return (
     <div 
       key={appRenderKey} 
-      className="flex flex-col bg-cavs-wine relative" 
-      style={{ 
-        width: '100%', 
-        height: '100vh',
-        maxWidth: '100vw', 
-        maxHeight: '100vh',
-        overflowX: 'hidden',
-        overflowY: 'hidden',
-        boxSizing: 'border-box'
-      }}
+      className="app-container flex flex-col bg-cavs-wine relative"
     >
       <AppBar position="static" sx={{ 
         backgroundColor: '#6F263D',
@@ -1344,364 +1061,143 @@ function App() {
         </Toolbar>
       </AppBar>
 
-      <main style={{ 
-        flex: 1,
-        display: 'flex',
-        justifyContent: 'center',
-        padding: window.innerWidth > 768 ? '0.5rem' : '0.25rem',
-        width: '100%',
-        height: 'calc(100vh - 60px)',
-        maxWidth: '100vw',
-        maxHeight: 'calc(100vh - 60px)',
-        overflowX: 'hidden',
-        overflowY: 'auto',
-        boxSizing: 'border-box'
-      }}>
+      <main className="main-content">
         {renderContent()}
       </main>
 
       {/* End Session Dialog */}
-      {showEndSessionDialog && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.7)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            backgroundColor: '#FFB81C',
-            padding: '2rem',
-            borderRadius: '12px',
-            border: '3px solid #6F263D',
-            textAlign: 'center',
-            maxWidth: '400px',
-            width: '90%'
-          }}>
-            <h2 style={{ color: '#6F263D', marginBottom: '1rem' }}>End Shooting Session</h2>
-            <p style={{ color: '#6F263D', marginBottom: '2rem', fontSize: '1.1rem' }}>
-              Do you want to save or discard the results for {selectedPlayer?.name || 'Unknown Player'}?
-            </p>
-            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-              <button
-                onClick={handleSaveResults}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  fontSize: '1rem',
-                  fontWeight: 'bold',
-                  border: 'none',
-                  borderRadius: '8px',
-                  backgroundColor: '#28a745',
-                  color: 'white',
-                  cursor: 'pointer'
-                }}
-              >
-                Save Results
-              </button>
-              <button
-                onClick={handleDiscardRequest}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  fontSize: '1rem',
-                  fontWeight: 'bold',
-                  border: 'none',
-                  borderRadius: '8px',
-                  backgroundColor: '#dc3545',
-                  color: 'white',
-                  cursor: 'pointer'
-                }}
-              >
-                Discard Results
-              </button>
-              <button
-                onClick={() => setShowEndSessionDialog(false)}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  fontSize: '1rem',
-                  fontWeight: 'bold',
-                  border: '2px solid #6F263D',
-                  borderRadius: '8px',
-                  backgroundColor: 'transparent',
-                  color: '#6F263D',
-                  cursor: 'pointer'
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
+      <Modal
+        isOpen={showEndSessionDialog}
+        onClose={() => setShowEndSessionDialog(false)}
+        title="End Shooting Session"
+        size="normal"
+      >
+        <p>
+          Do you want to save or discard the results for {selectedPlayer?.name || 'Unknown Player'}?
+        </p>
+        <div className="modal-button-container">
+          <button
+            onClick={handleSaveResults}
+            className="modal-btn-success"
+          >
+            Save Results
+          </button>
+          <button
+            onClick={handleDiscardRequest}
+            className="modal-btn-danger"
+          >
+            Discard Results
+          </button>
+          <button
+            onClick={() => setShowEndSessionDialog(false)}
+            className="modal-btn-neutral"
+          >
+            Cancel
+          </button>
         </div>
-      )}
+      </Modal>
 
       {/* Discard Confirmation Dialog */}
-      {showDiscardConfirmDialog && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.8)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 2000
-        }}>
-          <div style={{
-            backgroundColor: 'white',
-            padding: '2rem',
-            borderRadius: '12px',
-            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
-            textAlign: 'center',
-            maxWidth: '450px',
-            width: '90%'
-          }}>
-            <h2 style={{ color: '#dc3545', marginBottom: '1rem', fontSize: '1.5rem' }}>
-              Confirm Discard
-            </h2>
-            <p style={{ color: '#6F263D', marginBottom: '2rem', fontSize: '1.1rem', lineHeight: '1.4' }}>
-              Are you sure? This will cause you to lose all previous shooting data for this session.
-            </p>
-            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button
-                onClick={handleConfirmDiscard}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  fontSize: '1rem',
-                  fontWeight: 'bold',
-                  border: 'none',
-                  borderRadius: '8px',
-                  backgroundColor: '#dc3545',
-                  color: 'white',
-                  cursor: 'pointer',
-                  minWidth: '140px'
-                }}
-              >
-                Yes, Discard
-              </button>
-              <button
-                onClick={handleCancelDiscard}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  fontSize: '1rem',
-                  fontWeight: 'bold',
-                  border: '2px solid #6F263D',
-                  borderRadius: '8px',
-                  backgroundColor: 'transparent',
-                  color: '#6F263D',
-                  cursor: 'pointer',
-                  minWidth: '140px'
-                }}
-              >
-                No, Go Back
-              </button>
-            </div>
-          </div>
+      <Modal
+        isOpen={showDiscardConfirmDialog}
+        onClose={handleCancelDiscard}
+        title="Confirm Discard"
+        size="large"
+        isDanger={true}
+      >
+        <p>
+          Are you sure? This will cause you to lose all previous shooting data for this session.
+        </p>
+        <div className="modal-button-container">
+          <button
+            onClick={handleConfirmDiscard}
+            className="modal-btn-danger"
+          >
+            Yes, Discard
+          </button>
+          <button
+            onClick={handleCancelDiscard}
+            className="modal-btn-neutral"
+          >
+            No, Go Back
+          </button>
         </div>
-      )}
+      </Modal>
 
       {/* Reset Session Dialog */}
-      {showResetDialog && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.7)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            backgroundColor: '#FFB81C',
-            padding: '2rem',
-            borderRadius: '12px',
-            border: '3px solid #6F263D',
-            textAlign: 'center',
-            maxWidth: '450px',
-            width: '90%'
-          }}>
-            <h2 style={{ color: '#6F263D', marginBottom: '1rem', fontSize: '1.5rem' }}>
-              Reset Shooting Session
-            </h2>
-            <p style={{ 
-              color: '#6F263D', 
-              marginBottom: '2rem', 
-              fontSize: '1.1rem', 
-              lineHeight: '1.4',
-              fontWeight: '500'
-            }}>
-              Are you sure you want to reset the shooting session? This will cause the previous shooting session data to be lost!
-            </p>
-            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button
-                onClick={handleConfirmReset}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  fontSize: '1rem',
-                  fontWeight: 'bold',
-                  border: 'none',
-                  borderRadius: '8px',
-                  backgroundColor: '#dc3545',
-                  color: 'white',
-                  cursor: 'pointer',
-                  minWidth: '140px',
-                  transition: 'all 0.3s ease'
-                }}
-                onMouseOver={(e) => e.target.style.backgroundColor = '#c82333'}
-                onMouseOut={(e) => e.target.style.backgroundColor = '#dc3545'}
-              >
-                Reset Session
-              </button>
-              <button
-                onClick={handleCancelReset}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  fontSize: '1rem',
-                  fontWeight: 'bold',
-                  border: '2px solid #6F263D',
-                  borderRadius: '8px',
-                  backgroundColor: '#28a745',
-                  color: 'white',
-                  cursor: 'pointer',
-                  minWidth: '140px',
-                  transition: 'all 0.3s ease'
-                }}
-                onMouseOver={(e) => e.target.style.backgroundColor = '#218838'}
-                onMouseOut={(e) => e.target.style.backgroundColor = '#28a745'}
-              >
-                ← Back to Shooting
-              </button>
-            </div>
-          </div>
+      <Modal
+        isOpen={showResetDialog}
+        onClose={handleCancelReset}
+        title="Reset Shooting Session"
+        size="large"
+        isDanger={true}
+      >
+        <p>
+          Are you sure you want to reset the shooting session? This will cause the previous shooting session data to be lost!
+        </p>
+        <div className="modal-button-container">
+          <button
+            onClick={handleConfirmReset}
+            className="modal-btn-danger"
+          >
+            Reset Session
+          </button>
+          <button
+            onClick={handleCancelReset}
+            className="modal-btn-success"
+          >
+            ← Back to Shooting
+          </button>
         </div>
-      )}
+      </Modal>
 
       {/* Exit Confirmation Dialog */}
-      {showExitDialog && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.7)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            backgroundColor: '#FFB81C',
-            padding: '2rem',
-            borderRadius: '12px',
-            border: '3px solid #6F263D',
-            textAlign: 'center',
-            maxWidth: '450px',
-            width: '90%'
-          }}>
-            <h2 style={{ color: '#6F263D', marginBottom: '1rem', fontSize: '1.5rem' }}>
-              Exit Shooting Session
-            </h2>
-            <p style={{ 
-              color: '#6F263D', 
-              marginBottom: '2rem', 
-              fontSize: '1.1rem', 
-              lineHeight: '1.4',
-              fontWeight: '500'
-            }}>
-              All unsaved data will be lost. Are you sure you want to exit?
-            </p>
-            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button
-                onClick={handleConfirmExit}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  fontSize: '1rem',
-                  fontWeight: 'bold',
-                  border: 'none',
-                  borderRadius: '8px',
-                  backgroundColor: '#dc3545',
-                  color: 'white',
-                  cursor: 'pointer',
-                  minWidth: '140px',
-                  transition: 'all 0.3s ease'
-                }}
-                onMouseOver={(e) => e.target.style.backgroundColor = '#c82333'}
-                onMouseOut={(e) => e.target.style.backgroundColor = '#dc3545'}
-              >
-                Yes, Exit
-              </button>
-              <button
-                onClick={handleCancelExit}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  fontSize: '1rem',
-                  fontWeight: 'bold',
-                  border: '2px solid #6F263D',
-                  borderRadius: '8px',
-                  backgroundColor: '#28a745',
-                  color: 'white',
-                  cursor: 'pointer',
-                  minWidth: '140px',
-                  transition: 'all 0.3s ease'
-                }}
-                onMouseOver={(e) => e.target.style.backgroundColor = '#218838'}
-                onMouseOut={(e) => e.target.style.backgroundColor = '#28a745'}
-              >
-                No, Go Back
-              </button>
-            </div>
-          </div>
+      <Modal
+        isOpen={showExitDialog}
+        onClose={handleCancelExit}
+        title="Exit Shooting Session"
+        size="large"
+        isDanger={true}
+      >
+        <p>
+          All unsaved data will be lost. Are you sure you want to exit?
+        </p>
+        <div className="modal-button-container">
+          <button
+            onClick={handleConfirmExit}
+            className="modal-btn-danger"
+          >
+            Yes, Exit
+          </button>
+          <button
+            onClick={handleCancelExit}
+            className="modal-btn-success"
+          >
+            No, Go Back
+          </button>
         </div>
-      )}
+      </Modal>
 
       {/* Save Dialog */}
-      {showSaveDialog && (
+      <Modal
+        isOpen={showSaveDialog}
+        onClose={() => {}} // Prevent closing during save
+        title="Saving Results..."
+        size="normal"
+      >
         <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.7)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            backgroundColor: '#FFB81C',
-            padding: '2rem',
-            borderRadius: '12px',
-            border: '3px solid #6F263D',
-            textAlign: 'center',
-            maxWidth: '400px',
-            width: '90%'
-          }}>
-            <h2 style={{ color: '#6F263D', marginBottom: '1rem' }}>Saving Results...</h2>
-            <div style={{
-              width: '50px',
-              height: '50px',
-              border: '5px solid #6F263D',
-              borderTop: '5px solid transparent',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite',
-              margin: '0 auto 1rem'
-            }}></div>
-            <p style={{ color: '#6F263D', fontSize: '1.1rem' }}>
-              Saving shooting test results for {selectedPlayer?.name || 'Unknown Player'}...
-            </p>
-          </div>
-        </div>
-      )}
+          width: '50px',
+          height: '50px',
+          border: '5px solid #6F263D',
+          borderTop: '5px solid transparent',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite',
+          margin: '0 auto 1rem'
+        }}></div>
+        <p>
+          Saving shooting test results for {selectedPlayer?.name || 'Unknown Player'}...
+        </p>
+      </Modal>
 
       {/* Zone Review Dialog */}
       {showReviewDialog && (
@@ -1869,76 +1365,32 @@ function App() {
       )}
 
       {/* Results Saved Dialog */}
-      {showResultsDialog && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.7)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            backgroundColor: '#FFB81C',
-            padding: '2rem',
-            borderRadius: '12px',
-            border: '3px solid #6F263D',
-            textAlign: 'center',
-            maxWidth: '400px',
-            width: '90%'
-          }}>
-            <h2 style={{ color: '#6F263D', marginBottom: '1rem' }}>Results Saved!</h2>
-            <p style={{ color: '#6F263D', marginBottom: '2rem', fontSize: '1.1rem' }}>
-              Shooting test results for {selectedPlayer?.name || 'Unknown Player'} have been saved successfully.
-              <br /><br />
-              Total shots: {shots.length}
-            </p>
-            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-              <button
-                onClick={handleDownloadFromResults}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  fontSize: '1rem',
-                  fontWeight: 'bold',
-                  border: 'none',
-                  borderRadius: '8px',
-                  backgroundColor: '#6F263D',
-                  color: '#FFB81C',
-                  cursor: 'pointer'
-                }}
-              >
-                Download Results
-              </button>
-              <button
-                onClick={handleBackToHomeFromResults}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  fontSize: '1rem',
-                  fontWeight: 'bold',
-                  border: '2px solid #6F263D',
-                  borderRadius: '8px',
-                  backgroundColor: 'transparent',
-                  color: '#6F263D',
-                  cursor: 'pointer'
-                }}
-              >
-                Back to Home
-              </button>
-            </div>
-          </div>
+      <Modal
+        isOpen={showResultsDialog}
+        onClose={() => {}} // Controlled by buttons only
+        title="Results Saved!"
+        size="normal"
+      >
+        <p>
+          Shooting test results for {selectedPlayer?.name || 'Unknown Player'} have been saved successfully.
+          <br /><br />
+          Total shots: {shots.length}
+        </p>
+        <div className="modal-button-container">
+          <button
+            onClick={handleDownloadFromResults}
+            className="modal-btn-success"
+          >
+            Download Results
+          </button>
+          <button
+            onClick={handleBackToHomeFromResults}
+            className="modal-btn-neutral"
+          >
+            Back to Home
+          </button>
         </div>
-      )}
-
-      <style jsx>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
+      </Modal>
     </div>
   );
 }
