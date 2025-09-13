@@ -212,7 +212,6 @@ export const playersService = {
       
       // Fallback: try getting all players if the where query fails
       try {
-        console.log('Trying fallback query - getting all players...');
         const fallbackQuery = query(playersRef);
         const fallbackSnapshot = await getDocs(fallbackQuery);
         
@@ -244,13 +243,8 @@ export const playersService = {
   // Test function to verify Firebase connection
   async testConnection() {
     try {
-      console.log('Testing Firebase connection...');
       const playersRef = collection(db, PLAYERS_COLLECTION);
       const snapshot = await getDocs(playersRef);
-      
-      console.log('Connection successful!');
-      console.log('Number of documents:', snapshot.size);
-      console.log('Documents:', snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() })));
       
       return { success: true, count: snapshot.size };
     } catch (error) {
@@ -305,7 +299,6 @@ export const shootingLogsService = {
             shootingLogs: [...currentLogs, logID]
           });
           
-          console.log(`Updated player ${logData.playerID} with new shooting log: ${logID}`);
         } else {
           console.warn(`Player with ID ${logData.playerID} not found when trying to update shootingLogs`);
         }
@@ -383,7 +376,6 @@ export const shootingLogsService = {
           ...doc.data()
         }));
       } catch (indexError) {
-        console.log('Index not available for player logs, falling back to simple query...');
         
         // Fallback: simple query without orderBy, then sort in JavaScript
         const simpleQuery = query(logsRef, where('playerID', '==', playerID));
@@ -406,17 +398,14 @@ export const shootingLogsService = {
   // Get shooting logs by player ID
   async getShootingLogsByPlayer(playerID) {
     try {
-      console.log('Services: Searching for shooting logs with playerID:', playerID);
       const logsRef = collection(db, SHOOTING_LOGS_COLLECTION);
       
       // Search using the correct field name: playerID (not playerId)
       let q = query(logsRef, where('playerID', '==', playerID));
       let querySnapshot = await getDocs(q);
       
-      console.log('Services: Found', querySnapshot.size, 'logs for playerID:', playerID);
       
       if (querySnapshot.empty) {
-        console.log(`Services: No shooting logs found for player: ${playerID}`);
         return [];
       }
       
@@ -425,7 +414,6 @@ export const shootingLogsService = {
         ...doc.data()
       }));
       
-      console.log(`Services: Returning ${logs.length} logs for player: ${playerID}`);
       
       // Sort by session date (most recent first)
       return logs.sort((a, b) => new Date(b.sessionDate || 0) - new Date(a.sessionDate || 0));
@@ -443,7 +431,6 @@ export const shootingLogsService = {
       const querySnapshot = await getDocs(q);
       
       if (querySnapshot.empty) {
-        console.log('Shooting log not found for deletion');
         return;
       }
       
@@ -451,7 +438,6 @@ export const shootingLogsService = {
       const docRef = doc(db, SHOOTING_LOGS_COLLECTION, querySnapshot.docs[0].id);
       await deleteDoc(docRef);
       
-      console.log('Shooting log deleted successfully');
     } catch (error) {
       console.error('Error deleting shooting log:', error);
       throw error;
@@ -506,7 +492,6 @@ export const shotsService = {
           ...doc.data()
         }));
       } catch (indexError) {
-        console.log('Index not available, falling back to simple query...');
         
         // Fallback: simple query without orderBy, then sort in JavaScript
         const simpleQuery = query(shotsRef, where('logID', '==', logID));
@@ -686,7 +671,6 @@ export const sessionEventsService = {
           ...doc.data()
         }));
       } catch (indexError) {
-        console.log('Index not available for events, falling back to simple query...');
         
         // Fallback: simple query without orderBy, then sort in JavaScript
         const simpleQuery = query(eventsRef, where('logID', '==', logID));
@@ -827,24 +811,20 @@ export const initializeSampleData = async () => {
         { name: 'Jaylon Tyson', jerseyNumber: 20, position: 'SF', isActive: true }
       ];
 
-      console.log('Adding Cleveland Cavaliers roster to database...');
       let successCount = 0;
       
       for (const player of cavsRoster) {
         try {
           await playersService.addPlayer(player);
           successCount++;
-          console.log(`Added ${player.name} (#${player.jerseyNumber})`);
         } catch (error) {
           console.error(`Failed to add ${player.name}:`, error.message);
         }
       }
       
-      console.log(`Successfully added ${successCount}/${cavsRoster.length} players to Firebase!`);
       return { success: true, playersAdded: successCount, totalPlayers: cavsRoster.length };
     }
     
-    console.log(`Database already contains ${existingPlayers.length} players. Skipping initialization.`);
     return { success: false, message: 'Players already exist', existingCount: existingPlayers.length };
   } catch (error) {
     console.error('Error initializing Cleveland Cavaliers roster:', error);

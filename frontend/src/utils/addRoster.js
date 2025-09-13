@@ -85,13 +85,11 @@ const cavsRoster = [
  * - Detailed error information for debugging
  */
 export async function addCavsRoster() {
-  console.log('Starting to add Cleveland Cavaliers roster...');
   
   const results = [];
   
   for (const player of cavsRoster) {
     try {
-      console.log(`Adding ${player.name} #${player.jerseyNumber} (${player.position})`);
       
       const playerData = {
         name: player.name,
@@ -103,7 +101,6 @@ export async function addCavsRoster() {
       const result = await playersService.createPlayer(playerData);
       results.push(result);
       
-      console.log(`Added ${player.name} with playerID: ${result.playerID}`);
       
       // Small delay to avoid overwhelming Firebase
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -112,12 +109,6 @@ export async function addCavsRoster() {
       console.error(`Error adding ${player.name}:`, error);
     }
   }
-  
-  console.log(`\nRoster import complete! Added ${results.length} players.`);
-  console.log('\nPlayer Summary:');
-  results.forEach(player => {
-    console.log(`  - ${player.name} #${player.jerseyNumber} (${player.position}) - ${player.playerID}`);
-  });
   
   return results;
 }

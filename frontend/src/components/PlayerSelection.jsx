@@ -27,6 +27,7 @@ import React, { useState, useEffect } from 'react';
 import './PlayerSelection.css';
 import { playersService, initializeSampleData } from '../firebase/services';
 
+// PlayerSelection: Roster interface for shooting session setup - Called from App.jsx renderContent()
 /**
  * PLAYER SELECTION COMPONENT: Roster interface for shooting session setup
  * 
@@ -71,18 +72,11 @@ const PlayerSelection = ({ onPlayerSelected, onBackToHome }) => {
   
   /**
    * RESPONSIVE DESIGN STATE
-   * Tracks device orientation for layout optimization
    */
   const [isLandscape, setIsLandscape] = useState(false);      // Boolean: whether device is in landscape orientation
   
   /**
    * ORIENTATION DETECTION: Real-time responsive layout adjustment
-   * 
-   * Why landscape detection matters:
-   * - Mobile devices in landscape have limited vertical space
-   * - Player list layout needs to adapt for optimal usability
-   * - Landscape layouts benefit from horizontal player arrangement
-   * - Touch targets need to remain accessible in both orientations
    */
   useEffect(() => {
     const checkOrientation = () => {
@@ -261,45 +255,22 @@ const PlayerSelection = ({ onPlayerSelected, onBackToHome }) => {
       <div className="player-selection">
         <div className="player-selection-content">
           <h1 className="player-selection-title">Loading Players...</h1>
-          <div style={{ 
-            padding: isLandscape ? '20px 10px' : '40px 20px',
-            textAlign: 'center'
-          }}>
-            <div style={{ marginBottom: isLandscape ? '10px' : '20px', fontSize: isLandscape ? '1rem' : '1.1rem', color: '#FFB81C' }}>
+          <div className={`loading-container ${isLandscape ? 'landscape' : ''}`}>
+            <div className={`loading-text ${isLandscape ? 'landscape' : ''}`}>
               Loading players...
             </div>
             
             {/* Progress Bar Container */}
-            <div style={{ 
-              width: '100%', 
-              maxWidth: isLandscape ? '300px' : '400px', 
-              margin: isLandscape ? '0 auto 10px' : '0 auto 20px',
-              backgroundColor: '#f0f0f0',
-              borderRadius: '10px',
-              overflow: 'hidden',
-              height: isLandscape ? '10px' : '12px',
-              position: 'relative'
-            }}>
+            <div className={`progress-bar-container ${isLandscape ? 'landscape' : ''}`}>
               {/* Progress Fill */}
-              <div style={{
-                width: `${loadingProgress}%`,
-                height: '100%',
-                backgroundColor: '#FFB81C',
-                borderRadius: '10px',
-                transition: 'width 0.2s ease-in-out',
-                background: 'linear-gradient(90deg, #FFB81C 0%, #ffc747 50%, #FFB81C 100%)'
-              }} />
+              <div 
+                className="progress-bar-fill"
+                style={{ width: `${loadingProgress}%` }}
+              />
             </div>
             
             {/* Progress Info */}
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              maxWidth: isLandscape ? '300px' : '400px',
-              margin: '0 auto',
-              fontSize: isLandscape ? '0.8rem' : '0.9rem',
-              color: '#6F263D'
-            }}>
+            <div className={`progress-info ${isLandscape ? 'landscape' : ''}`}>
               <span>{loadingProgress}% complete</span>
               {estimatedTime > 0 && (
                 <span>~{Math.ceil(estimatedTime)}s remaining</span>

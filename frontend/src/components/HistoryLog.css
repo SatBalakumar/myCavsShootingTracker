@@ -1,38 +1,27 @@
 .history-log {
-  width: 100%;
-  max-width: 100vw;
-  min-height: 40px;
-  max-height: 50vh; /* Increased from 30vh to 50vh for better desktop space usage */
+  width: 350px;
+  min-width: 350px;
+  max-width: 350px;
+  height: 200px;
+  min-height: 200px;
+  max-height: 200px;
   background-color: #FFB81C;
-  border: 2px solid #6F263D;
-  border-radius: 0;
-  padding: 0.5rem;
+  border: 3px solid #6F263D;
+  border-radius: 16px;
+  padding: 1rem;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transition: none;
   box-sizing: border-box;
 }
 
-/* Special styling for desktop sidebar layout */
-@media (min-width: 1025px) {
-  .history-log {
-    max-height: 60vh; /* Even more space on desktop */
-    flex: 1; /* Allow it to grow within the sidebar */
-  }
-  
-  .history-log .log-scroll {
-    height: auto; /* Remove fixed height */
-    max-height: calc(60vh - 120px); /* Dynamic height based on container minus header/margins */
-    min-height: 200px; /* Minimum usable height */
-  }
-}
-
 .history-log.collapsed {
-  height: auto;
-  min-height: 80px;
-  max-height: 80px;
+  height: 200px;
+  min-height: 200px;
+  max-height: 200px;
+  padding: 1rem;
 }
 
 .log-header {
@@ -45,11 +34,10 @@
 }
 
 .history-log h2 {
-  font-size: 1rem;
+  font-size: 1.1rem;
   color: #6F263D;
   margin: 0;
   font-weight: bold;
-  margin: 0;
   text-align: center;
   flex-grow: 1;
 }
@@ -62,12 +50,34 @@
   font-weight: bold;
   cursor: pointer;
   padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.collapse-button:hover {
+  background-color: rgba(111, 38, 61, 0.1);
+}
+
+.undo-button {
+  background-color: #6F263D;
+  color: #FFB81C;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  cursor: pointer;
   margin-left: 10px;
   transition: all 0.2s ease;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   min-width: 70px;
   text-align: center;
+}
+
+.undo-button:hover {
+  background-color: #8B3A5C;
+  transform: translateY(-1px);
 }
 
 .separator-line {
@@ -81,6 +91,10 @@
   display: flex;
   flex-direction: column;
   width: 100%;
+  background-color: rgba(111, 38, 61, 0.1);
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 2px solid #6F263D;
 }
 
 .log-container {
@@ -88,8 +102,6 @@
   flex-direction: column;
   align-items: flex-end;
   position: relative;
-  flex: 1; /* Allow container to grow */
-  min-height: 0; /* Important for flex items to shrink if needed */
 }
 
 .scroll-button {
@@ -124,11 +136,14 @@
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  height: 140px; /* Default height for mobile/tablet */
+  height: 120px;
   width: 100%;
+  background-color: rgba(111, 38, 61, 0.1);
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 2px solid #6F263D;
   scrollbar-width: thin;
   scrollbar-color: #6F263D #FFB81C;
-  flex: 1; /* Allow it to grow in flex container */
 }
 
 /* Webkit scrollbar styling */
@@ -152,13 +167,17 @@
 .log-entry {
   font-size: 0.95rem;
   color: #6F263D;
-  border-bottom: 1px dashed #6F263D;
-  padding-bottom: 0.3rem;
+  background-color: rgba(255, 184, 28, 0.3);
+  border: 1px solid #6F263D;
+  border-radius: 6px;
+  padding: 0.5rem;
+  margin-bottom: 0.3rem;
   line-height: 1.4;
+  font-weight: 500;
 }
 
 .log-entry strong {
-  color: #000000;
+  color: #6F263D;
   font-weight: bold;
 }
 
@@ -177,32 +196,12 @@
   .scroll-button {
     display: none !important;
   }
-  
-  .history-log {
-    max-height: 30vh; /* Keep mobile constrained */
-  }
-  
-  .history-log .log-scroll {
-    height: 120px; /* Smaller fixed height on mobile */
-    max-height: 120px;
-  }
-}
-
-/* Tablet optimization */
-@media (min-width: 481px) and (max-width: 1024px) {
-  .history-log {
-    max-height: 40vh;
-  }
-  
-  .history-log .log-scroll {
-    height: 160px;
-    max-height: 160px;
-  }
 }
 
 .shot-timestamp {
-  font-size: 0.75rem;
-  color: #8B3A5C;
+  font-size: 0.8rem;
+  color: #6F263D;
   font-style: italic;
   margin-left: 8px;
+  font-weight: 500;
 }

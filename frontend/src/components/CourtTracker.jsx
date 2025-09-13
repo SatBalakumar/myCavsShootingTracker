@@ -90,6 +90,7 @@ const COURT_ZONES = [
  * 4. Session state management (start/pause/resume)
  * 5. Device-aware UI (desktop vs mobile experience)
  */
+// CourtTracker: Interactive SVG basketball court - Called from App.jsx renderContent()
 const CourtTracker = (props) => {
   // SAFETY CHECKS: Defensive programming to prevent runtime errors
   // Props can be undefined during React component lifecycle transitions
@@ -135,6 +136,7 @@ const CourtTracker = (props) => {
    * and performance patterns over time. Accurate timing is crucial for
    * meaningful basketball analytics.
    */
+  // calculateShotTime: Computes time elapsed since last shot - Called by handleZoneClick
   const calculateShotTime = (currentElapsedTime) => {
     try {
       if (lastUndoShotTime !== null && lastUndoShotTime !== undefined) {
@@ -297,6 +299,7 @@ const CourtTracker = (props) => {
    * - timerValue: Absolute session time when shot occurred
    * - timeTakenForShot: Relative time since previous shot
    */
+  // handleZoneClick: Records shot when court zone is clicked - Called by SVG polygon click events
   const handleZoneClick = (zoneId, made) => {
     // Validation 1: Ensure session is active
     if (!sessionStarted) {
@@ -343,6 +346,7 @@ const CourtTracker = (props) => {
    * - Visual indicators on court zones
    * - Performance analysis and improvement tracking
    */
+  // getStats: Calculates zone-based shooting statistics - Called for court zone overlays
   const getStats = () => {
     const stats = {};
     for (let shot of shots) {

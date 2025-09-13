@@ -38,17 +38,17 @@ import { getFirestore } from 'firebase/firestore';     // Firestore database ser
  * - Storage: Available for future media uploads (player photos, etc.)
  * 
  * Security Note:
- * These configuration values are safe to expose in client-side code.
- * Firebase uses these for service identification, not access control.
- * Actual security is enforced by Firestore security rules on the backend.
+ * Configuration values are loaded from environment variables to avoid
+ * exposing sensitive information in the codebase. The .env file contains
+ * the actual values and is excluded from version control.
  */
 const firebaseConfig = {
-  apiKey: "AIzaSyBa3QYhv_u3DsC5cxluVBTfCfwrgNHldJI",              // Client API key for Firebase services
-  authDomain: "mycavsshootingtracker.firebaseapp.com",             // Authentication domain
-  projectId: "mycavsshootingtracker",                              // Unique project identifier
-  storageBucket: "mycavsshootingtracker.firebasestorage.app",      // Cloud storage bucket
-  messagingSenderId: "711852417023",                               // Cloud messaging service ID
-  appId: "1:711852417023:web:8fd2bb74c8ab08a81551ca",              // Web app identifier
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,                    // Client API key for Firebase services
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,            // Authentication domain
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,              // Unique project identifier
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,      // Cloud storage bucket
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID, // Cloud messaging service ID
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,                      // Web app identifier
 };
 
 /**
